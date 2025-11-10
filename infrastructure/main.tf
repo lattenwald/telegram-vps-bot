@@ -139,3 +139,25 @@ resource "aws_lambda_permission" "api_gateway_invoke" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.telegram_webhook.execution_arn}/*/*"
 }
+
+# Setup Telegram bot commands
+resource "null_resource" "setup_bot_commands" {
+  triggers = {
+    # Re-run when Lambda function changes or authorized chat IDs change
+    lambda_version        = aws_lambda_function.telegram_bot.version
+    authorized_chat_ids   = var.authorized_chat_ids
+    script_hash           = filesha1("${path.module}/../scripts/setup_commands.py")
+  }
+
+  provisioner "local-exec" {
+    command = "cd ${path.module}/.. && uv run python scripts/setup_commands.py"
+    environment = {
+      AUTHORIZED_CHAT_IDS = var.authorized_chat_ids
+      AWS_REGION         = var.aws_region
+    }
+  }
+
+  depends_on = [
+    aws_lambda_function.telegram_bot
+  ]
+}

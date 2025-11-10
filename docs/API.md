@@ -78,6 +78,53 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" \
 }
 ```
 
+#### setMyCommands
+Set the list of bot commands visible in the Telegram client.
+
+**Method:** POST
+
+**Endpoint:** `/setMyCommands`
+
+**Parameters:**
+- `commands` (array, required): Array of bot commands with `command` and `description`
+- `scope` (object, optional): Scope of commands (default, chat, etc.)
+- `language_code` (string, optional): Two-letter ISO 639-1 language code
+
+**Example:**
+```bash
+curl -X POST "https://api.telegram.org/bot<TOKEN>/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commands": [
+      {"command": "help", "description": "Show available commands"},
+      {"command": "id", "description": "Get your chat ID"}
+    ]
+  }'
+```
+
+**Example with scope (specific chat):**
+```bash
+curl -X POST "https://api.telegram.org/bot<TOKEN>/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commands": [
+      {"command": "help", "description": "Show available commands"},
+      {"command": "reboot", "description": "Reboot a server"}
+    ],
+    "scope": {"type": "chat", "chat_id": 123456789}
+  }'
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "result": true
+}
+```
+
+**Note:** Setting commands for specific chat IDs may fail if the user hasn't chatted with the bot yet. This is non-critical.
+
 #### getUpdates
 Get updates from Telegram (used for debugging, not in production).
 
@@ -372,7 +419,29 @@ Get your Telegram chat ID.
 
 **Response:**
 ```
-Your chat ID: 123456789
+Your chat ID: `123456789`
+```
+
+### /help
+Show available commands (different for authorized vs unauthorized users).
+
+**Authorization:** Not required
+
+**Format:** `/help`
+
+**Response (unauthorized users):**
+```
+Available commands:
+/id - Get your chat ID
+/help - Show this help message
+```
+
+**Response (authorized users):**
+```
+Available commands:
+/id - Get your chat ID
+/help - Show this help message
+/reboot <server_name> - Reboot a server
 ```
 
 ### /reboot
@@ -390,6 +459,9 @@ Reboot a VPS server by name.
 - **Unauthorized:** `❌ Access denied. Use /id to get your chat ID and request authorization.`
 - **Invalid Format:** `❌ Usage: /reboot <server_name>`
 - **API Error:** `❌ Error: Unable to reboot server - try again later`
+
+### Unknown Commands
+All other commands (including `/start`) are silently ignored with no response.
 
 ---
 

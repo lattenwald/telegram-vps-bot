@@ -128,3 +128,83 @@ def test_send_error_message_fails_gracefully(telegram_client):
     # Should return False but not raise exception
     result = telegram_client.send_error_message(chat_id=123456789, error_message='Test error')
     assert result is False
+
+
+@responses.activate
+def test_set_my_commands_success(telegram_client):
+    """Test successful setMyCommands call."""
+    responses.add(
+        responses.POST,
+        'https://api.telegram.org/bottest-bot-token-123/setMyCommands',
+        json={'ok': True, 'result': True},
+        status=200
+    )
+
+    commands = [
+        {"command": "help", "description": "Show available commands"},
+        {"command": "id", "description": "Get your chat ID"}
+    ]
+
+    result = telegram_client.set_my_commands(commands)
+    assert result is True
+
+
+@responses.activate
+def test_set_my_commands_with_scope(telegram_client):
+    """Test setMyCommands with specific scope."""
+    responses.add(
+        responses.POST,
+        'https://api.telegram.org/bottest-bot-token-123/setMyCommands',
+        json={'ok': True, 'result': True},
+        status=200
+    )
+
+    commands = [
+        {"command": "help", "description": "Show available commands"},
+        {"command": "reboot", "description": "Reboot a server"}
+    ]
+    scope = {"type": "chat", "chat_id": 123456789}
+
+    result = telegram_client.set_my_commands(commands, scope=scope)
+    assert result is True
+
+    # Verify request payload
+    import json
+    request_body = json.loads(responses.calls[0].request.body)
+    assert request_body['commands'] == commands
+    assert request_body['scope'] == scope
+    assert request_body['language_code'] == 'en'
+
+
+@responses.activate
+def test_set_my_commands_api_error_graceful(telegram_client):
+    """Test setMyCommands handles API errors gracefully (non-critical)."""
+    responses.add(
+        responses.POST,
+        'https://api.telegram.org/bottest-bot-token-123/setMyCommands',
+        json={'ok': False, 'description': 'User not found'},
+        status=400
+    )
+
+    commands = [{"command": "help", "description": "Show help"}]
+    scope = {"type": "chat", "chat_id": 999999999}
+
+    # Should return False but not raise exception (non-critical failure)
+    result = telegram_client.set_my_commands(commands, scope=scope)
+    assert result is False
+
+
+def test_set_my_commands_timeout_graceful(telegram_client):
+    """Test setMyCommands handles timeouts gracefully."""
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            responses.POST,
+            'https://api.telegram.org/bottest-bot-token-123/setMyCommands',
+            body=Timeout()
+        )
+
+        commands = [{"command": "help", "description": "Show help"}]
+
+        # Should return False but not raise exception (non-critical failure)
+        result = telegram_client.set_my_commands(commands)
+        assert result is False

@@ -73,9 +73,10 @@ def test_lambda_handler_reboot_command_authorized(sample_api_gateway_event, lamb
         json=sample_bitlaunch_servers,
         status=200
     )
+    # BitLaunch API uses /restart endpoint, not /reboot
     responses.add(
         responses.POST,
-        'https://api.bitlaunch.io/v1/servers/server-123/reboot',
+        'https://api.bitlaunch.io/v1/servers/server-123/restart',
         json={'status': 'rebooting'},
         status=200
     )
@@ -150,13 +151,15 @@ def test_lambda_handler_reboot_invalid_format(sample_api_gateway_event, lambda_c
 
 
 @responses.activate
-def test_lambda_handler_unknown_command(sample_api_gateway_event, lambda_context, mock_env_vars, mock_ssm):
-    """Test unknown command handling."""
+def test_lambda_handler_help_command_authorized(sample_api_gateway_event, lambda_context,
+                                                 mock_env_vars, mock_ssm, authorized_chat_id):
+    """Test /help command with authorized user."""
     from handler import lambda_handler
 
-    # Update event with unknown command
+    # Update event with help command from authorized user
     update = json.loads(sample_api_gateway_event['body'])
-    update['message']['text'] = '/unknown'
+    update['message']['text'] = '/help'
+    update['message']['chat']['id'] = authorized_chat_id
     sample_api_gateway_event['body'] = json.dumps(update)
 
     # Mock Telegram send_message
@@ -170,10 +173,75 @@ def test_lambda_handler_unknown_command(sample_api_gateway_event, lambda_context
     response = lambda_handler(sample_api_gateway_event, lambda_context)
 
     assert response['statusCode'] == 200
-    # Verify unknown command message was sent
+    # Verify help message was sent with authorized commands
     assert len(responses.calls) == 1
     request_body = json.loads(responses.calls[0].request.body)
-    assert 'Unknown command' in request_body['text']
+    assert '/id' in request_body['text']
+    assert '/help' in request_body['text']
+    assert '/reboot' in request_body['text']
+
+
+@responses.activate
+def test_lambda_handler_help_command_unauthorized(sample_api_gateway_event, lambda_context,
+                                                   mock_env_vars, mock_ssm, unauthorized_chat_id):
+    """Test /help command with unauthorized user."""
+    from handler import lambda_handler
+
+    # Update event with help command from unauthorized user
+    update = json.loads(sample_api_gateway_event['body'])
+    update['message']['text'] = '/help'
+    update['message']['chat']['id'] = unauthorized_chat_id
+    sample_api_gateway_event['body'] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        'https://api.telegram.org/bottest-telegram-token-123/sendMessage',
+        json={'ok': True, 'result': {'message_id': 1}},
+        status=200
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response['statusCode'] == 200
+    # Verify help message was sent with unauthorized commands only
+    assert len(responses.calls) == 1
+    request_body = json.loads(responses.calls[0].request.body)
+    assert '/id' in request_body['text']
+    assert '/help' in request_body['text']
+    assert '/reboot' not in request_body['text']
+
+
+def test_lambda_handler_unknown_command_ignored(sample_api_gateway_event, lambda_context, mock_env_vars, mock_ssm):
+    """Test unknown command is silently ignored."""
+    from handler import lambda_handler
+
+    # Update event with unknown command
+    update = json.loads(sample_api_gateway_event['body'])
+    update['message']['text'] = '/unknown'
+    sample_api_gateway_event['body'] = json.dumps(update)
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response['statusCode'] == 200
+    # Verify no Telegram API calls were made (silent ignore)
+    assert len(responses.calls) == 0
+
+
+def test_lambda_handler_start_command_ignored(sample_api_gateway_event, lambda_context, mock_env_vars, mock_ssm):
+    """Test /start command is silently ignored."""
+    from handler import lambda_handler
+
+    # Update event with /start command
+    update = json.loads(sample_api_gateway_event['body'])
+    update['message']['text'] = '/start'
+    sample_api_gateway_event['body'] = json.dumps(update)
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response['statusCode'] == 200
+    # Verify no Telegram API calls were made (silent ignore)
+    assert len(responses.calls) == 0
 
 
 def test_lambda_handler_non_command_message(sample_api_gateway_event, lambda_context, mock_env_vars, mock_ssm):

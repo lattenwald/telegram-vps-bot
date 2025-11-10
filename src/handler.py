@@ -89,6 +89,42 @@ def handle_id_command(telegram: TelegramClient, chat_id: int) -> None:
         logger.error(f"Failed to send chat ID: {e}")
 
 
+def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
+    """Handle /help command - show available commands.
+
+    Shows different command lists based on authorization:
+    - Unauthorized users: /id, /help
+    - Authorized users: /id, /help, /reboot
+
+    Args:
+        telegram: TelegramClient instance.
+        chat_id: Telegram chat ID.
+    """
+    logger.info(f"Handling /help command for chat_id: {chat_id}")
+
+    # Check if user is authorized
+    authorized = is_authorized(chat_id)
+
+    if authorized:
+        help_text = (
+            "Available commands:\n"
+            "/id - Get your chat ID\n"
+            "/help - Show this help message\n"
+            "/reboot <server_name> - Reboot a server"
+        )
+    else:
+        help_text = (
+            "Available commands:\n"
+            "/id - Get your chat ID\n"
+            "/help - Show this help message"
+        )
+
+    try:
+        telegram.send_message(chat_id, help_text)
+    except TelegramError as e:
+        logger.error(f"Failed to send help message: {e}")
+
+
 def handle_reboot_command(
     telegram: TelegramClient,
     bitlaunch: BitLaunchClient,
@@ -152,27 +188,6 @@ def handle_reboot_command(
             telegram.send_error_message(chat_id, "Unable to reboot server - try again later")
 
 
-def handle_unknown_command(telegram: TelegramClient, chat_id: int, command: str) -> None:
-    """Handle unknown command.
-
-    Args:
-        telegram: TelegramClient instance.
-        chat_id: Telegram chat ID.
-        command: Unknown command received.
-    """
-    logger.info(f"Unknown command: {command}")
-    try:
-        telegram.send_message(
-            chat_id,
-            f"❌ Unknown command: {command}\n\n"
-            "Available commands:\n"
-            "/id - Get your chat ID\n"
-            "/reboot <server_name> - Reboot a server"
-        )
-    except TelegramError:
-        pass
-
-
 def process_command(
     telegram: TelegramClient,
     bitlaunch: BitLaunchClient,
@@ -180,6 +195,9 @@ def process_command(
     text: str
 ) -> None:
     """Process a command from a Telegram message.
+
+    Only whitelisted commands (/id, /help, /reboot) are processed.
+    All other commands are silently ignored.
 
     Args:
         telegram: TelegramClient instance.
@@ -193,12 +211,16 @@ def process_command(
     if command == '/id':
         handle_id_command(telegram, chat_id)
 
+    elif command == '/help':
+        handle_help_command(telegram, chat_id)
+
     elif command == '/reboot':
         server_name = parts[1] if len(parts) > 1 else ''
         handle_reboot_command(telegram, bitlaunch, chat_id, server_name)
 
     else:
-        handle_unknown_command(telegram, chat_id, command)
+        # Silently ignore all other commands (including /start)
+        logger.info(f"Ignoring non-whitelisted command: {command}")
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

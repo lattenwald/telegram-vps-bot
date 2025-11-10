@@ -103,10 +103,10 @@ def test_reboot_server_success(bitlaunch_client, sample_bitlaunch_servers):
         status=200
     )
 
-    # Mock reboot endpoint
+    # Mock restart endpoint (BitLaunch API uses /restart, not /reboot)
     responses.add(
         responses.POST,
-        'https://api.bitlaunch.io/v1/servers/server-123/reboot',
+        'https://api.bitlaunch.io/v1/servers/server-123/restart',
         json={'status': 'rebooting'},
         status=200
     )
@@ -139,9 +139,10 @@ def test_reboot_server_api_error(bitlaunch_client, sample_bitlaunch_servers):
         status=200
     )
 
+    # Mock restart endpoint (BitLaunch API uses /restart, not /reboot)
     responses.add(
         responses.POST,
-        'https://api.bitlaunch.io/v1/servers/server-123/reboot',
+        'https://api.bitlaunch.io/v1/servers/server-123/restart',
         json={'error': 'Server error'},
         status=500
     )

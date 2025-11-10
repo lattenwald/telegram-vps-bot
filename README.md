@@ -14,7 +14,14 @@ A serverless Telegram bot deployed on AWS Lambda that enables authorized users t
 | Command | Description | Authorization |
 |---------|-------------|---------------|
 | `/id` | Get your Telegram chat ID | Not required |
+| `/help` | Show available commands | Not required |
 | `/reboot <server_name>` | Reboot a VPS server | Required |
+
+**Note:** The `/help` command shows different commands based on authorization:
+- **Unauthorized users** see: `/id`, `/help`
+- **Authorized users** see: `/id`, `/help`, `/reboot`
+
+All other commands (including `/start`) are silently ignored.
 
 ## Architecture
 

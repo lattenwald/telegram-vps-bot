@@ -11,11 +11,11 @@ A serverless Telegram bot deployed on AWS Lambda that enables authorized users t
 
 ## Commands
 
-| Command | Description | Authorization |
-|---------|-------------|---------------|
-| `/id` | Get your Telegram chat ID | Not required |
-| `/help` | Show available commands | Not required |
-| `/reboot <server_name>` | Reboot a VPS server | Required |
+| Command | Description | Authorization | Example |
+|---------|-------------|---------------|---------|
+| `/id` | Get your Telegram chat ID | Not required | `/id` |
+| `/help` | Show available commands | Not required | `/help` |
+| `/reboot <server_name>` | Reboot a VPS server | Required | `/reboot web-1` |
 
 **Note:** The `/help` command shows different commands based on authorization:
 - **Unauthorized users** see: `/id`, `/help`
@@ -51,8 +51,6 @@ cd telegram-vps-bot
 
 ### 2. Create Virtual Environment and Install Dependencies
 
-**Option A: Using `uv` (Recommended - Fast)**
-
 ```bash
 # Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -64,25 +62,12 @@ uv venv --python 3.13
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
-# Install dependencies (much faster than pip!)
+# Install dependencies
 uv pip install -r requirements.txt
 uv pip install -r requirements-dev.txt  # For development/testing
 ```
 
-**Option B: Using traditional venv + pip**
-
-```bash
-# Create virtual environment
-python3.13 -m venv .venv
-
-# Activate virtual environment
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # For development/testing
-```
+> **Alternative:** For traditional venv setup, see [docs/SETUP.md](docs/SETUP.md)
 
 ### 3. Configure AWS Secrets
 
@@ -106,6 +91,7 @@ aws ssm put-parameter \
 cd infrastructure
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your authorized chat IDs
+# Example: authorized_chat_ids = [123456789, 987654321]
 ```
 
 ### 5. Deploy Infrastructure
@@ -114,6 +100,11 @@ cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform plan
 terraform apply
+```
+
+**To destroy infrastructure later:**
+```bash
+terraform destroy
 ```
 
 ### 6. Set Telegram Webhook
@@ -134,52 +125,30 @@ Send `/id` to your bot to verify it's working.
 ### Run Tests
 
 ```bash
-# Make sure virtual environment is activated
-source .venv/bin/activate
-
 # Run all tests with coverage
 pytest tests/ -v --cov=src
-
-# Run specific test file
-pytest tests/test_auth.py -v
-
-# Generate HTML coverage report
-pytest --cov=src --cov-report=html --cov-report=term
-
-# View coverage report (opens in browser)
-open htmlcov/index.html  # macOS
-# xdg-open htmlcov/index.html  # Linux
 ```
+
+> **More options:** See [docs/SETUP.md](docs/SETUP.md) for HTML reports and specific test files
 
 ### Code Formatting
 
 ```bash
-black src/ tests/
-flake8 src/ tests/
+# Format code with ruff
+ruff format .
+
+# Check and fix import sorting
+ruff check --select I --fix .
 ```
 
 ## Project Structure
 
 ```
 telegram-vps-bot/
-├── src/                    # Lambda function source code
-│   ├── handler.py          # Lambda entry point
-│   ├── telegram_client.py  # Telegram API wrapper
-│   ├── bitlaunch_client.py # BitLaunch API wrapper
-│   ├── auth.py             # Authorization logic
-│   └── config.py           # Configuration management
-├── infrastructure/         # Terraform configuration
-│   ├── main.tf             # Main infrastructure
-│   ├── variables.tf        # Input variables
-│   ├── outputs.tf          # Output values
-│   └── iam.tf              # IAM roles and policies
-├── tests/                  # Unit and integration tests
-├── docs/                   # Documentation
-│   ├── PRD.md              # Product Requirements Document
-│   ├── SETUP.md            # Detailed setup guide
-│   └── API.md              # API documentation
-├── requirements.txt        # Python dependencies
-└── requirements-dev.txt    # Development dependencies
+├── src/                # Lambda function source code
+├── infrastructure/     # Terraform IaC configuration
+├── tests/             # Pytest test suite
+└── docs/              # Documentation (PRD, setup, API)
 ```
 
 ## Documentation

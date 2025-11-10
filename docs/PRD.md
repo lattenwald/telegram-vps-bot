@@ -80,6 +80,7 @@ A serverless Telegram bot deployed on AWS Lambda that enables authorized users t
 | Command | Parameters | Response | Authorization |
 |---------|------------|----------|---------------|
 | `/id` | None | Your chat ID: `<chat_id>` | Not required |
+| `/help` | None | Available commands list | Not required |
 
 #### 3.1.2 Authorized Commands
 | Command | Parameters | Response | Authorization |

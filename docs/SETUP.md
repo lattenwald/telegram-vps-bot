@@ -100,7 +100,13 @@ uv pip install -r requirements.txt
 uv pip install -r requirements-dev.txt
 ```
 
-**Note**: This project uses [uv](https://github.com/astral-sh/uv) for faster dependency management. If you prefer standard pip, replace `uv pip install` with `pip install`.
+**Alternative (Traditional venv):**
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt  # For testing
+```
 
 ## Step 7: Configure Terraform Variables
 
@@ -190,7 +196,8 @@ curl "https://api.telegram.org/botYOUR_BOT_TOKEN/getWebhookInfo"
 
 1. Open Telegram and find your bot
 2. Send `/id` - you should receive your chat ID
-3. Send `/reboot <your-server-name>` - you should receive an appropriate response
+3. Send `/help` - you should see available commands
+4. Send `/reboot <your-server-name>` - you should receive an appropriate response (authorized users only)
 
 ## Verification Checklist
 

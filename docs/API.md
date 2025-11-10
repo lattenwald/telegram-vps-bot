@@ -231,7 +231,7 @@ curl -X GET "https://api.bitlaunch.io/v1/servers" \
 [
   {
     "id": "server-123",
-    "name": "my-vps-server",
+    "name": "web-1",
     "status": "running",
     "ip": "192.0.2.1",
     "created": "2024-01-15T10:30:00Z",
@@ -251,12 +251,12 @@ curl -X GET "https://api.bitlaunch.io/v1/servers" \
 ]
 ```
 
-#### Reboot Server
-Reboot a specific VPS server.
+#### Restart Server
+Restart a specific VPS server.
 
 **Method:** POST
 
-**Endpoint:** `/servers/{id}/reboot`
+**Endpoint:** `/servers/{id}/restart`
 
 **Headers:**
 ```
@@ -269,7 +269,7 @@ Content-Type: application/json
 
 **Example:**
 ```bash
-curl -X POST "https://api.bitlaunch.io/v1/servers/server-123/reboot" \
+curl -X POST "https://api.bitlaunch.io/v1/servers/server-123/restart" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json"
 ```
@@ -451,10 +451,10 @@ Reboot a VPS server by name.
 
 **Format:** `/reboot <server_name>`
 
-**Example:** `/reboot my-vps-server`
+**Example:** `/reboot web-1`
 
 **Responses:**
-- **Success:** `✓ Server 'my-vps-server' is rebooting`
+- **Success:** `✓ Server 'web-1' is rebooting`
 - **Not Found:** `❌ Error: Server 'xyz' not found`
 - **Unauthorized:** `❌ Access denied. Use /id to get your chat ID and request authorization.`
 - **Invalid Format:** `❌ Usage: /reboot <server_name>`

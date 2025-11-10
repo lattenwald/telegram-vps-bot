@@ -1,0 +1,24 @@
+# AWS Configuration
+aws_region = "us-east-1"
+
+# Project Configuration
+project_name = "telegram-vps-bot"
+
+# Authorization - IMPORTANT: Replace with your Telegram chat IDs
+# Use /id command in Telegram to get your chat ID
+authorized_chat_ids = "123456789,987654321"
+
+# Lambda Configuration
+lambda_memory_size = 256
+lambda_timeout     = 30
+
+# SSM Parameter Store Paths
+ssm_telegram_token_path    = "/telegram-vps-bot/telegram-token"
+ssm_bitlaunch_api_key_path = "/telegram-vps-bot/bitlaunch-api-key"
+
+# BitLaunch API Configuration
+bitlaunch_api_base_url = "https://api.bitlaunch.io/v1"
+
+# Logging
+log_level          = "INFO"
+log_retention_days = 7

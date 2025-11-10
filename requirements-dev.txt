@@ -1,0 +1,9 @@
+-r requirements.txt
+
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+moto[ssm]==5.0.24
+responses==0.25.3
+black==24.10.0
+flake8==7.1.1

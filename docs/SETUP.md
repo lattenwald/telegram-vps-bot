@@ -127,10 +127,23 @@ authorized_chat_ids = "123456789"
 # aws_region = "us-east-1"
 ```
 
-## Step 8: Deploy Infrastructure with Terraform
+## Step 8: Build Lambda Deployment Package
+
+Before deploying with Terraform, build the Lambda package with dependencies:
 
 ```bash
-# Initialize Terraform
+cd infrastructure
+
+# Build Lambda deployment package (includes dependencies)
+./build_lambda.sh
+```
+
+This script installs Python dependencies (boto3, requests) and packages them with your code.
+
+## Step 9: Deploy Infrastructure with Terraform
+
+```bash
+# Initialize Terraform (if not already done)
 terraform init
 
 # Review the deployment plan
@@ -142,13 +155,15 @@ terraform apply
 
 Type `yes` when prompted to confirm the deployment.
 
+**Note**: On first deployment, if Terraform fails with "missing directory" error, run `./build_lambda.sh` manually before `terraform apply`.
+
 The deployment will create:
 - Lambda function
 - API Gateway REST API
 - IAM roles and policies
 - CloudWatch Log Group
 
-## Step 9: Set Telegram Webhook
+## Step 10: Set Telegram Webhook
 
 After deployment completes, set the Telegram webhook:
 
@@ -171,11 +186,11 @@ Verify the webhook is set:
 curl "https://api.telegram.org/botYOUR_BOT_TOKEN/getWebhookInfo"
 ```
 
-## Step 10: Test the Bot
+## Step 11: Test the Bot
 
 1. Open Telegram and find your bot
 2. Send `/id` - you should receive your chat ID
-3. Send `/reboot test-server` - you should receive an appropriate response
+3. Send `/reboot <your-server-name>` - you should receive an appropriate response
 
 ## Verification Checklist
 

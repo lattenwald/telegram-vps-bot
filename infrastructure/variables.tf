@@ -42,7 +42,7 @@ variable "ssm_bitlaunch_api_key_path" {
 variable "bitlaunch_api_base_url" {
   description = "BitLaunch API base URL"
   type        = string
-  default     = "https://api.bitlaunch.io/v1"
+  default     = "https://app.bitlaunch.io/api"
 }
 
 variable "log_level" {

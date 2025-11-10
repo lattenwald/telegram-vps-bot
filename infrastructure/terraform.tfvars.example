@@ -17,7 +17,7 @@ ssm_telegram_token_path    = "/telegram-vps-bot/telegram-token"
 ssm_bitlaunch_api_key_path = "/telegram-vps-bot/bitlaunch-api-key"
 
 # BitLaunch API Configuration
-bitlaunch_api_base_url = "https://api.bitlaunch.io/v1"
+bitlaunch_api_base_url = "https://app.bitlaunch.io/api"
 
 # Logging
 log_level          = "INFO"

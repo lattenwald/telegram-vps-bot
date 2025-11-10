@@ -19,7 +19,7 @@ class BitLaunchError(Exception):
 class BitLaunchClient:
     """Client for interacting with the BitLaunch API."""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.bitlaunch.io/v1"):
+    def __init__(self, api_key: str, base_url: str = "https://app.bitlaunch.io/api"):
         """Initialize BitLaunch API client.
 
         Args:
@@ -127,7 +127,7 @@ class BitLaunchClient:
             raise BitLaunchError(f"Server '{server_name}' not found")
 
         server_id = server.get('id')
-        url = f"{self.base_url}/servers/{server_id}/reboot"
+        url = f"{self.base_url}/servers/{server_id}/restart"
 
         try:
             logger.info(f"Rebooting server: {server_name} (ID: {server_id})")

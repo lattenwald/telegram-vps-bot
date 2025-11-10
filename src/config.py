@@ -3,9 +3,10 @@
 Handles loading environment variables and retrieving secrets from AWS SSM Parameter Store.
 """
 
-import os
 import logging
+import os
 from typing import Optional
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -20,23 +21,18 @@ class Config:
 
     def __init__(self):
         """Initialize configuration from environment variables."""
-        # Environment variables
         self.authorized_chat_ids = self._parse_authorized_chat_ids()
         self.bitlaunch_api_base_url = os.environ.get(
-            'BITLAUNCH_API_BASE_URL',
-            'https://api.bitlaunch.io/v1'
+            "BITLAUNCH_API_BASE_URL", "https://api.bitlaunch.io/v1"
         )
         self.ssm_telegram_token_path = os.environ.get(
-            'SSM_TELEGRAM_TOKEN_PATH',
-            '/telegram-vps-bot/telegram-token'
+            "SSM_TELEGRAM_TOKEN_PATH", "/telegram-vps-bot/telegram-token"
         )
         self.ssm_bitlaunch_api_key_path = os.environ.get(
-            'SSM_BITLAUNCH_API_KEY_PATH',
-            '/telegram-vps-bot/bitlaunch-api-key'
+            "SSM_BITLAUNCH_API_KEY_PATH", "/telegram-vps-bot/bitlaunch-api-key"
         )
-        self.log_level = os.environ.get('LOG_LEVEL', 'INFO')
+        self.log_level = os.environ.get("LOG_LEVEL", "INFO")
 
-        # Initialize SSM client
         self._ssm_client = None
 
     def _parse_authorized_chat_ids(self) -> set:
@@ -45,13 +41,13 @@ class Config:
         Returns:
             set: Set of authorized chat IDs as integers.
         """
-        chat_ids_str = os.environ.get('AUTHORIZED_CHAT_IDS', '')
+        chat_ids_str = os.environ.get("AUTHORIZED_CHAT_IDS", "")
         if not chat_ids_str:
             logger.warning("No authorized chat IDs configured")
             return set()
 
         chat_ids = []
-        for chat_id_str in chat_ids_str.split(','):
+        for chat_id_str in chat_ids_str.split(","):
             chat_id_str = chat_id_str.strip()
             if not chat_id_str:
                 continue
@@ -70,10 +66,12 @@ class Config:
             boto3.client: SSM client instance.
         """
         if self._ssm_client is None:
-            self._ssm_client = boto3.client('ssm')
+            self._ssm_client = boto3.client("ssm")
         return self._ssm_client
 
-    def get_ssm_parameter(self, parameter_name: str, with_decryption: bool = True) -> Optional[str]:
+    def get_ssm_parameter(
+        self, parameter_name: str, with_decryption: bool = True
+    ) -> Optional[str]:
         """Retrieve parameter from AWS SSM Parameter Store with caching.
 
         Args:
@@ -83,25 +81,22 @@ class Config:
         Returns:
             str: Parameter value, or None if retrieval fails.
         """
-        # Check cache first
         if parameter_name in self._ssm_cache:
             return self._ssm_cache[parameter_name]
 
         try:
             response = self.ssm_client.get_parameter(
-                Name=parameter_name,
-                WithDecryption=with_decryption
+                Name=parameter_name, WithDecryption=with_decryption
             )
-            value = response['Parameter']['Value']
+            value = response["Parameter"]["Value"]
 
-            # Cache the value
             self._ssm_cache[parameter_name] = value
 
             logger.info(f"Retrieved SSM parameter: {parameter_name}")
             return value
 
         except ClientError as e:
-            error_code = e.response['Error']['Code']
+            error_code = e.response["Error"]["Code"]
             logger.error(
                 f"Failed to retrieve SSM parameter {parameter_name}: {error_code}"
             )
@@ -133,7 +128,6 @@ class Config:
         """
         is_valid = True
 
-        # Check if we can retrieve secrets
         if not self.telegram_token:
             logger.error("Failed to retrieve Telegram token from SSM")
             is_valid = False

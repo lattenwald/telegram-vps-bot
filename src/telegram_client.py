@@ -4,7 +4,8 @@ Provides methods to interact with the Telegram Bot API.
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 import requests
 from requests.exceptions import RequestException, Timeout
 
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class TelegramError(Exception):
     """Base exception for Telegram API errors."""
+
     pass
 
 
@@ -29,7 +31,9 @@ class TelegramClient:
         self.base_url = f"https://api.telegram.org/bot{bot_token}"
         self.timeout = 30  # 30 second timeout
 
-    def send_message(self, chat_id: int, text: str, parse_mode: Optional[str] = None) -> bool:
+    def send_message(
+        self, chat_id: int, text: str, parse_mode: Optional[str] = None
+    ) -> bool:
         """Send a message to a Telegram chat.
 
         Args:
@@ -45,21 +49,14 @@ class TelegramClient:
         """
         url = f"{self.base_url}/sendMessage"
 
-        payload = {
-            'chat_id': chat_id,
-            'text': text
-        }
+        payload = {"chat_id": chat_id, "text": text}
 
         if parse_mode:
-            payload['parse_mode'] = parse_mode
+            payload["parse_mode"] = parse_mode
 
         try:
             logger.info(f"Sending message to chat_id: {chat_id}")
-            response = requests.post(
-                url,
-                json=payload,
-                timeout=self.timeout
-            )
+            response = requests.post(url, json=payload, timeout=self.timeout)
 
             if response.status_code == 200:
                 logger.info(f"Successfully sent message to chat_id: {chat_id}")
@@ -67,7 +64,7 @@ class TelegramClient:
 
             else:
                 error_data = response.json() if response.text else {}
-                error_description = error_data.get('description', 'Unknown error')
+                error_description = error_data.get("description", "Unknown error")
                 logger.error(
                     f"Telegram API error: {response.status_code} - {error_description}"
                 )
@@ -117,7 +114,7 @@ class TelegramClient:
         self,
         commands: List[Dict[str, str]],
         scope: Optional[Dict[str, Any]] = None,
-        language_code: str = 'en'
+        language_code: str = "en",
     ) -> bool:
         """Set the list of bot commands visible in Telegram client.
 
@@ -137,28 +134,21 @@ class TelegramClient:
         """
         url = f"{self.base_url}/setMyCommands"
 
-        payload = {
-            'commands': commands,
-            'language_code': language_code
-        }
+        payload = {"commands": commands, "language_code": language_code}
 
         if scope:
-            payload['scope'] = scope
+            payload["scope"] = scope
 
         try:
             logger.info(f"Setting bot commands: {commands}, scope: {scope}")
-            response = requests.post(
-                url,
-                json=payload,
-                timeout=self.timeout
-            )
+            response = requests.post(url, json=payload, timeout=self.timeout)
 
             if response.status_code == 200:
                 logger.info("Successfully set bot commands")
                 return True
             else:
                 error_data = response.json() if response.text else {}
-                error_description = error_data.get('description', 'Unknown error')
+                error_description = error_data.get("description", "Unknown error")
                 logger.warning(
                     f"Failed to set bot commands: {response.status_code} - {error_description}. "
                     f"This is non-critical and may occur if user hasn't chatted with bot yet."
@@ -166,7 +156,9 @@ class TelegramClient:
                 return False
 
         except Timeout:
-            logger.warning("Telegram API request timed out while setting commands (non-critical)")
+            logger.warning(
+                "Telegram API request timed out while setting commands (non-critical)"
+            )
             return False
 
         except RequestException as e:

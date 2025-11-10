@@ -5,16 +5,15 @@ Main entry point for processing Telegram webhook requests.
 
 import json
 import logging
-from typing import Dict, Any, Optional
-from config import config
-from auth import is_authorized
-from telegram_client import TelegramClient, TelegramError
-from bitlaunch_client import BitLaunchClient, BitLaunchError
+from typing import Any, Dict, Optional
 
-# Configure logging
+from auth import is_authorized
+from bitlaunch_client import BitLaunchClient, BitLaunchError
+from config import config
+from telegram_client import TelegramClient, TelegramError
+
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -29,11 +28,11 @@ def parse_telegram_update(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         dict: Parsed Telegram update, or None if parsing fails.
     """
     try:
-        if 'body' not in event:
+        if "body" not in event:
             logger.error("No body in event")
             return None
 
-        body = event['body']
+        body = event["body"]
         if isinstance(body, str):
             body = json.loads(body)
 
@@ -54,21 +53,17 @@ def extract_message_info(update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         dict: Message info with chat_id, text, and message_id, or None if extraction fails.
     """
     try:
-        message = update.get('message', {})
+        message = update.get("message", {})
 
-        chat_id = message.get('chat', {}).get('id')
-        text = message.get('text', '')
-        message_id = message.get('message_id')
+        chat_id = message.get("chat", {}).get("id")
+        text = message.get("text", "")
+        message_id = message.get("message_id")
 
         if not chat_id or not text:
             logger.error("Missing chat_id or text in message")
             return None
 
-        return {
-            'chat_id': chat_id,
-            'text': text.strip(),
-            'message_id': message_id
-        }
+        return {"chat_id": chat_id, "text": text.strip(), "message_id": message_id}
 
     except Exception as e:
         logger.error(f"Failed to extract message info: {e}")
@@ -84,7 +79,9 @@ def handle_id_command(telegram: TelegramClient, chat_id: int) -> None:
     """
     logger.info(f"Handling /id command for chat_id: {chat_id}")
     try:
-        telegram.send_message(chat_id, f"Your chat ID: `{chat_id}`", parse_mode='Markdown')
+        telegram.send_message(
+            chat_id, f"Your chat ID: `{chat_id}`", parse_mode="Markdown"
+        )
     except TelegramError as e:
         logger.error(f"Failed to send chat ID: {e}")
 
@@ -102,7 +99,6 @@ def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
     """
     logger.info(f"Handling /help command for chat_id: {chat_id}")
 
-    # Check if user is authorized
     authorized = is_authorized(chat_id)
 
     if authorized:
@@ -126,10 +122,7 @@ def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
 
 
 def handle_reboot_command(
-    telegram: TelegramClient,
-    bitlaunch: BitLaunchClient,
-    chat_id: int,
-    server_name: str
+    telegram: TelegramClient, bitlaunch: BitLaunchClient, chat_id: int, server_name: str
 ) -> None:
     """Handle /reboot command - reboot a VPS server.
 
@@ -141,19 +134,17 @@ def handle_reboot_command(
     """
     logger.info(f"Handling /reboot command for server: {server_name}")
 
-    # Check authorization
     if not is_authorized(chat_id):
         logger.warning(f"Unauthorized /reboot attempt from chat_id: {chat_id}")
         try:
             telegram.send_message(
                 chat_id,
-                "❌ Access denied. Use /id to get your chat ID and request authorization."
+                "❌ Access denied. Use /id to get your chat ID and request authorization.",
             )
         except TelegramError:
             pass
         return
 
-    # Validate server name
     if not server_name:
         try:
             telegram.send_message(chat_id, "❌ Usage: /reboot <server_name>")
@@ -161,13 +152,13 @@ def handle_reboot_command(
             pass
         return
 
-    # Send acknowledgment
     try:
-        telegram.send_message(chat_id, f"Rebooting server `{server_name}`...", parse_mode='Markdown')
+        telegram.send_message(
+            chat_id, f"Rebooting server `{server_name}`...", parse_mode="Markdown"
+        )
     except TelegramError:
         pass
 
-    # Reboot server
     try:
         bitlaunch.reboot_server(server_name)
         telegram.send_success_message(chat_id, f"Server `{server_name}` is rebooting")
@@ -177,22 +168,22 @@ def handle_reboot_command(
         error_message = str(e)
         logger.error(f"BitLaunch error: {error_message}")
 
-        # Send user-friendly error message
         if "not found" in error_message.lower():
             telegram.send_error_message(chat_id, f"Server '{server_name}' not found")
         elif "authentication" in error_message.lower():
-            telegram.send_error_message(chat_id, "Configuration error - contact administrator")
+            telegram.send_error_message(
+                chat_id, "Configuration error - contact administrator"
+            )
         elif "rate limit" in error_message.lower():
             telegram.send_error_message(chat_id, "Too many requests - try again later")
         else:
-            telegram.send_error_message(chat_id, "Unable to reboot server - try again later")
+            telegram.send_error_message(
+                chat_id, "Unable to reboot server - try again later"
+            )
 
 
 def process_command(
-    telegram: TelegramClient,
-    bitlaunch: BitLaunchClient,
-    chat_id: int,
-    text: str
+    telegram: TelegramClient, bitlaunch: BitLaunchClient, chat_id: int, text: str
 ) -> None:
     """Process a command from a Telegram message.
 
@@ -208,14 +199,14 @@ def process_command(
     parts = text.split(maxsplit=1)
     command = parts[0].lower()
 
-    if command == '/id':
+    if command == "/id":
         handle_id_command(telegram, chat_id)
 
-    elif command == '/help':
+    elif command == "/help":
         handle_help_command(telegram, chat_id)
 
-    elif command == '/reboot':
-        server_name = parts[1] if len(parts) > 1 else ''
+    elif command == "/reboot":
+        server_name = parts[1] if len(parts) > 1 else ""
         handle_reboot_command(telegram, bitlaunch, chat_id, server_name)
 
     else:
@@ -236,55 +227,43 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     logger.info("Lambda function invoked")
 
     try:
-        # Validate configuration
         if not config.validate():
             logger.error("Configuration validation failed")
             return {
-                'statusCode': 500,
-                'body': json.dumps({'error': 'Configuration error'})
+                "statusCode": 500,
+                "body": json.dumps({"error": "Configuration error"}),
             }
 
-        # Initialize clients
         telegram = TelegramClient(config.telegram_token)
-        bitlaunch = BitLaunchClient(config.bitlaunch_api_key, config.bitlaunch_api_base_url)
+        bitlaunch = BitLaunchClient(
+            config.bitlaunch_api_key, config.bitlaunch_api_base_url
+        )
 
-        # Parse Telegram update
         update = parse_telegram_update(event)
         if not update:
             logger.error("Failed to parse Telegram update")
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': 'Invalid request'})
-            }
+            return {"statusCode": 400, "body": json.dumps({"error": "Invalid request"})}
 
-        # Extract message info
         message_info = extract_message_info(update)
         if not message_info:
             logger.warning("No message in update - ignoring")
-            return {
-                'statusCode': 200,
-                'body': json.dumps({'status': 'ignored'})
-            }
+            return {"statusCode": 200, "body": json.dumps({"status": "ignored"})}
 
-        chat_id = message_info['chat_id']
-        text = message_info['text']
+        chat_id = message_info["chat_id"]
+        text = message_info["text"]
 
         logger.info(f"Processing message from chat_id: {chat_id}")
 
-        # Process command
-        if text.startswith('/'):
+        if text.startswith("/"):
             process_command(telegram, bitlaunch, chat_id, text)
         else:
             logger.info("Non-command message - ignoring")
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'status': 'ok'})
-        }
+        return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         return {
-            'statusCode': 500,
-            'body': json.dumps({'error': 'Internal server error'})
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal server error"}),
         }

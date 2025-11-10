@@ -14,19 +14,18 @@ Environment Variables:
     AWS_REGION: AWS region for SSM (default: us-east-1)
 """
 
+import logging
 import os
 import sys
-import logging
 
 # Add src directory to path so we can import our modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from telegram_client import TelegramClient
 from config import config
+from telegram_client import TelegramClient
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -41,14 +40,8 @@ def setup_default_commands(client: TelegramClient) -> bool:
         bool: True if successful, False otherwise.
     """
     commands = [
-        {
-            "command": "id",
-            "description": "Get your Telegram chat ID"
-        },
-        {
-            "command": "help",
-            "description": "Show available commands"
-        }
+        {"command": "id", "description": "Get your Telegram chat ID"},
+        {"command": "help", "description": "Show available commands"},
     ]
 
     logger.info("Setting default commands for all users...")
@@ -66,24 +59,12 @@ def setup_authorized_commands(client: TelegramClient, chat_id: int) -> bool:
         bool: True if successful, False otherwise.
     """
     commands = [
-        {
-            "command": "id",
-            "description": "Get your Telegram chat ID"
-        },
-        {
-            "command": "help",
-            "description": "Show available commands"
-        },
-        {
-            "command": "reboot",
-            "description": "Reboot a server"
-        }
+        {"command": "id", "description": "Get your Telegram chat ID"},
+        {"command": "help", "description": "Show available commands"},
+        {"command": "reboot", "description": "Reboot a server"},
     ]
 
-    scope = {
-        "type": "chat",
-        "chat_id": chat_id
-    }
+    scope = {"type": "chat", "chat_id": chat_id}
 
     logger.info(f"Setting authorized commands for chat_id: {chat_id}...")
     return client.set_my_commands(commands, scope=scope)
@@ -92,30 +73,27 @@ def setup_authorized_commands(client: TelegramClient, chat_id: int) -> bool:
 def main():
     """Main entry point for command setup."""
     try:
-        # Get bot token from config (reads from SSM or environment)
         bot_token = config.telegram_token
         if not bot_token:
             logger.error("TELEGRAM_TOKEN not found in environment or SSM")
             sys.exit(1)
 
-        # Get authorized chat IDs from config
         authorized_chat_ids = config.authorized_chat_ids
         if not authorized_chat_ids:
-            logger.warning("No AUTHORIZED_CHAT_IDS configured - skipping authorized commands")
+            logger.warning(
+                "No AUTHORIZED_CHAT_IDS configured - skipping authorized commands"
+            )
         else:
             logger.info(f"Found {len(authorized_chat_ids)} authorized chat IDs")
 
-        # Initialize Telegram client
         client = TelegramClient(bot_token)
 
-        # Set default commands for all users
         success_default = setup_default_commands(client)
         if success_default:
             logger.info("✓ Default commands set successfully")
         else:
             logger.warning("⚠ Failed to set default commands (non-critical)")
 
-        # Set authorized commands for each authorized chat
         success_count = 0
         for chat_id in authorized_chat_ids:
             if setup_authorized_commands(client, chat_id):
@@ -127,12 +105,15 @@ def main():
                     f"(user may not have chatted with bot yet)"
                 )
 
-        # Summary
-        logger.info("\n" + "="*50)
+        logger.info("\n" + "=" * 50)
         logger.info("Command Setup Summary:")
-        logger.info(f"  Default commands: {'✓ Success' if success_default else '⚠ Failed'}")
-        logger.info(f"  Authorized chats: {success_count}/{len(authorized_chat_ids)} successful")
-        logger.info("="*50)
+        logger.info(
+            f"  Default commands: {'✓ Success' if success_default else '⚠ Failed'}"
+        )
+        logger.info(
+            f"  Authorized chats: {success_count}/{len(authorized_chat_ids)} successful"
+        )
+        logger.info("=" * 50)
 
         # Exit with success even if some authorized commands failed (non-critical)
         sys.exit(0)
@@ -142,5 +123,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

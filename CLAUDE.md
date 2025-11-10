@@ -46,7 +46,20 @@ Create SOP in .agent/sops/[category]/
 - ✅ Use Python type hints throughout
 - ✅ Follow existing code patterns
 - ✅ Keep functions small and focused
+- ✅ Format code with ruff before committing
 - ❌ Never commit secrets to git
+
+### Code Formatting
+```bash
+# Format all Python code
+ruff format .
+
+# Fix import sorting
+ruff check --select I --fix .
+
+# Run both before committing
+ruff format . && ruff check --select I --fix .
+```
 
 ### Security Requirements
 - All secrets in AWS SSM Parameter Store

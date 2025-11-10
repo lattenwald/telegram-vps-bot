@@ -4,7 +4,8 @@ Provides methods to interact with the BitLaunch.io API.
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 import requests
 from requests.exceptions import RequestException, Timeout
 
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class BitLaunchError(Exception):
     """Base exception for BitLaunch API errors."""
+
     pass
 
 
@@ -27,7 +29,7 @@ class BitLaunchClient:
             base_url: Base URL for the BitLaunch API.
         """
         self.api_key = api_key
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.timeout = 30  # 30 second timeout
 
     def _get_headers(self) -> Dict[str, str]:
@@ -37,9 +39,9 @@ class BitLaunchClient:
             dict: HTTP headers including authentication.
         """
         return {
-            'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
         }
 
     def get_servers(self) -> List[Dict]:
@@ -56,9 +58,7 @@ class BitLaunchClient:
         try:
             logger.info("Fetching server list from BitLaunch API")
             response = requests.get(
-                url,
-                headers=self._get_headers(),
-                timeout=self.timeout
+                url, headers=self._get_headers(), timeout=self.timeout
             )
 
             if response.status_code == 200:
@@ -101,7 +101,7 @@ class BitLaunchClient:
         servers = self.get_servers()
 
         for server in servers:
-            if server.get('name') == server_name:
+            if server.get("name") == server_name:
                 logger.info(f"Found server: {server_name} (ID: {server.get('id')})")
                 return server
 
@@ -120,21 +120,18 @@ class BitLaunchClient:
         Raises:
             BitLaunchError: If the API request fails or server is not found.
         """
-        # Find server by name
         server = self.find_server_by_name(server_name)
 
         if not server:
             raise BitLaunchError(f"Server '{server_name}' not found")
 
-        server_id = server.get('id')
+        server_id = server.get("id")
         url = f"{self.base_url}/servers/{server_id}/restart"
 
         try:
             logger.info(f"Rebooting server: {server_name} (ID: {server_id})")
             response = requests.post(
-                url,
-                headers=self._get_headers(),
-                timeout=self.timeout
+                url, headers=self._get_headers(), timeout=self.timeout
             )
 
             if response.status_code == 200:

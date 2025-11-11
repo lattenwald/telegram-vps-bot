@@ -89,5 +89,4 @@ lambda_build/
 .python-version-local
 
 # Navigator
-.agent/
 .context-markers/

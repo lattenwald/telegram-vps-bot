@@ -1,6 +1,6 @@
 # TASK-001: Multi-Provider ACL Implementation
 
-**Status**: 🚧 In Progress
+**Status**: ✅ Deployed
 **Created**: 2025-12-19
 **Assignee**: Manual
 
@@ -20,7 +20,7 @@ Implement a unified ACL system that supports:
 **Success Criteria**:
 - [x] ACL configuration stored in SSM as JSON ✅
 - [x] Management script for YAML editing and upload ✅
-- [ ] Provider abstraction supporting BitLaunch and Kamatera (BitLaunch done)
+- [x] Provider abstraction supporting BitLaunch and Kamatera ✅
 - [x] Updated auth logic with provider/server checks ✅
 - [x] Backward-compatible command syntax ✅
 
@@ -57,7 +57,7 @@ Implement a unified ACL system that supports:
 
 **Tasks**:
 - [x] Create `/telegram-vps-bot/credentials/bitlaunch` with JSON format ✅
-- [ ] Create `/telegram-vps-bot/credentials/kamatera` with JSON format
+- [x] Create `/telegram-vps-bot/credentials/kamatera` with JSON format ✅
 - [x] Update `config.py` with `get_provider_credentials()` method ✅
 - [x] Migrate existing BitLaunch API key ✅
 - [x] Update IAM policy for wildcard SSM access (`/telegram-vps-bot/*`) ✅
@@ -72,14 +72,14 @@ Implement a unified ACL system that supports:
 **Tasks**:
 - [x] Create `ProviderClient` ABC with `find_server_by_name`, `reboot_server` ✅
 - [x] Refactor `BitLaunchClient` to implement interface ✅
-- [ ] Create `KamateraClient` implementing interface
+- [x] Create `KamateraClient` implementing interface ✅
 - [x] Create provider registry and factory ✅
 
 **Files**:
 - `src/providers/__init__.py` - Provider registry ✅
 - `src/providers/base.py` - Abstract base class ✅
 - `src/providers/bitlaunch.py` - Refactored from `bitlaunch_client.py` ✅
-- `src/providers/kamatera.py` - New Kamatera client (pending)
+- `src/providers/kamatera.py` - Kamatera client ✅
 
 ### Phase 5: Authorization Logic ✅
 **Goal**: Update auth to support multi-provider ACL
@@ -98,14 +98,14 @@ Implement a unified ACL system that supports:
 **Goal**: Support new command syntax
 
 **Tasks**:
-- [ ] Implement `parse_server_arg()` for `provider:server` syntax (future)
+- [x] Implement `parse_server_arg()` for `provider:server` syntax ✅
 - [x] Add `/find <server>` command (read-only, tests provider) ✅
 - [x] Add Markdown formatting with `escape_markdown()` helper ✅
 - [x] Add `parse_mode` support to `send_success/error_message` ✅
 - [x] Update `/reboot` handler with provider-aware auth ✅
 - [x] Update `/find` handler with provider-aware auth ✅
-- [ ] Auto-detect provider when user has single provider access (future)
-- [ ] Try providers in order when multiple allowed (future)
+- [x] Auto-detect provider when user has single provider access ✅
+- [x] Try providers in order when multiple allowed ✅
 
 **Files**:
 - `src/handler.py` - Updated command handling ✅
@@ -164,7 +164,7 @@ users:
 ## Dependencies
 
 **Requires**:
-- [ ] Kamatera API credentials (client_id + secret)
+- [x] Kamatera API credentials (client_id + secret) ✅
 - [x] SSM parameters created in AWS ✅
 
 **Blocks**:
@@ -206,28 +206,27 @@ Practical order (not phase order):
    - [x] Created initial ACL in SSM
    - [x] Added 14 new auth tests (61 total, 84% coverage)
 
-5. **Kamatera** (Phase 4 continued) ⏳ NEXT
-   - Add `KamateraClient`
-   - Add Kamatera credentials to SSM
+5. **Kamatera** (Phase 4 continued) ✅ DONE
+   - [x] Added `KamateraClient` in `src/providers/kamatera.py`
+   - [x] Added Kamatera credentials to SSM
+   - [x] 21 new tests for Kamatera client
+
+6. **Multi-provider resolution** (Phase 6 completion) ✅ DONE
+   - [x] Added `parse_server_arg()` for `provider:server` syntax
+   - [x] Added `get_allowed_providers()` and `find_server_across_providers()`
+   - [x] Updated `/find` and `/reboot` to search all allowed providers
+   - [x] 10 new tests for provider resolution (92 total, 82% coverage)
 
 ---
 
 ## Next Steps
 
-1. **Deploy and test ACL** ⏳
-   - Run `terraform apply` to deploy new code
-   - Test with admin (122247178) and user (370823094)
+1. **Deploy and test** ✅ DEPLOYED
+   - [x] Ran `terraform apply` to deploy new code
+   - [x] Live testing with Telegram bot
 
-2. **Add Kamatera support** (when ready)
-   - Get Kamatera API credentials
-   - Create `/telegram-vps-bot/credentials/kamatera` in SSM
-   - Implement `KamateraClient` in `src/providers/kamatera.py`
-   - Update ACL with Kamatera permissions
-
-3. **Optional enhancements**
-   - `provider:server` syntax for explicit provider selection
-   - Auto-detect provider for single-provider users
-   - Update documentation
+2. **Optional enhancements**
+   - Update documentation with new syntax
 
 ---
 
@@ -254,8 +253,8 @@ Before marking complete:
 - [ ] Documentation updated
 - [x] Management script tested ✅
 - [x] Credentials migrated to new format ✅
-- [ ] Kamatera support added
+- [x] Kamatera support added ✅
 
 ---
 
-**Last Updated**: 2025-12-19 (ACL implementation complete, ready for deploy)
+**Last Updated**: 2025-12-19 (Deployed to production)

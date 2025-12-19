@@ -176,7 +176,7 @@ aws logs filter-log-events \
 
 | Task | Description | Status | Depends On |
 |------|-------------|--------|------------|
-| [TASK-001](tasks/TASK-001-multi-provider-acl.md) | Multi-provider ACL with Kamatera support | 🚧 In Progress | - |
+| [TASK-001](tasks/TASK-001-multi-provider-acl.md) | Multi-provider ACL with Kamatera support | ✅ Deployed | - |
 | [TASK-002](tasks/TASK-002-dynamodb-caching.md) | DynamoDB caching for server-provider mapping | ⏸️ Postponed | TASK-001 |
 | [TASK-003](tasks/TASK-003-bot-admin-commands.md) | Bot admin commands for ACL management | ⏸️ Postponed | TASK-001 |
 

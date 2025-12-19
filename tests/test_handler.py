@@ -396,13 +396,21 @@ def test_lambda_handler_find_command_authorized_not_found(
         status=200,
     )
 
+    # Mock Kamatera API (new: multi-provider search)
+    responses.add(
+        responses.POST,
+        "https://cloudcli.cloudwm.com/service/server/info",
+        json=[],  # Empty result = not found
+        status=200,
+    )
+
     response = lambda_handler(sample_api_gateway_event, lambda_context)
 
     assert response["statusCode"] == 200
-    # Verify error message was sent
-    assert len(responses.calls) == 2  # BitLaunch + Telegram
-    # BitLaunch call is first (index 0), Telegram is second (index 1)
-    request_body = json.loads(responses.calls[1].request.body)
+    # Verify error message was sent (searches both providers)
+    assert len(responses.calls) == 3  # BitLaunch + Kamatera + Telegram
+    # Last call is Telegram
+    request_body = json.loads(responses.calls[-1].request.body)
     assert "not found" in request_body["text"].lower()
 
 
@@ -473,7 +481,187 @@ def test_lambda_handler_find_invalid_format(
     response = lambda_handler(sample_api_gateway_event, lambda_context)
 
     assert response["statusCode"] == 200
-    # Verify usage message was sent
+    # Verify usage message was sent for /find
     assert len(responses.calls) == 1
     request_body = json.loads(responses.calls[0].request.body)
     assert "Usage:" in request_body["text"]
+
+
+# Tests for parse_server_arg function
+def test_parse_server_arg_simple_name():
+    """Test parsing simple server name without provider."""
+    from handler import parse_server_arg
+
+    provider, server = parse_server_arg("my-server")
+    assert provider is None
+    assert server == "my-server"
+
+
+def test_parse_server_arg_with_provider():
+    """Test parsing provider:server format."""
+    from handler import parse_server_arg
+
+    provider, server = parse_server_arg("bitlaunch:my-server")
+    assert provider == "bitlaunch"
+    assert server == "my-server"
+
+
+def test_parse_server_arg_provider_uppercase():
+    """Test parsing provider:server with uppercase provider."""
+    from handler import parse_server_arg
+
+    provider, server = parse_server_arg("KAMATERA:my-server")
+    assert provider == "kamatera"  # Should be lowercased
+    assert server == "my-server"
+
+
+def test_parse_server_arg_with_spaces():
+    """Test parsing with spaces around components."""
+    from handler import parse_server_arg
+
+    provider, server = parse_server_arg(" bitlaunch : my-server ")
+    assert provider == "bitlaunch"
+    assert server == "my-server"
+
+
+def test_parse_server_arg_empty_provider():
+    """Test parsing with empty provider (just :server)."""
+    from handler import parse_server_arg
+
+    provider, server = parse_server_arg(":my-server")
+    assert provider is None
+    assert server == ":my-server"
+
+
+def test_parse_server_arg_empty_server():
+    """Test parsing with empty server (provider:)."""
+    from handler import parse_server_arg
+
+    provider, server = parse_server_arg("bitlaunch:")
+    assert provider is None
+    assert server == "bitlaunch:"
+
+
+def test_get_allowed_providers_admin(mock_env_vars, mock_ssm):
+    """Test get_allowed_providers for admin user."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import get_allowed_providers
+
+    # 123456789 is an admin in the test ACL
+    providers = get_allowed_providers(123456789)
+    assert "bitlaunch" in providers
+    assert "kamatera" in providers
+
+
+def test_get_allowed_providers_regular_user(mock_env_vars, mock_ssm):
+    """Test get_allowed_providers for regular user."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import get_allowed_providers
+
+    # 987654321 only has bitlaunch access in the test ACL
+    providers = get_allowed_providers(987654321)
+    assert providers == ["bitlaunch"]
+
+
+@responses.activate
+def test_lambda_handler_find_with_explicit_provider(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /find command with explicit provider:server syntax."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/find bitlaunch:test-server-1"
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message (success message)
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # Mock BitLaunch API
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Should only call BitLaunch (explicit provider)
+    assert len(responses.calls) == 2  # BitLaunch + Telegram
+    request_body = json.loads(responses.calls[-1].request.body)
+    assert "found on bitlaunch" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_find_unknown_provider(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+):
+    """Test /find command with unknown provider."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/find unknown:my-server"
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message (error message)
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    assert len(responses.calls) == 1  # Only Telegram error message
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "unknown provider" in request_body["text"].lower()

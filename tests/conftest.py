@@ -76,6 +76,11 @@ def mock_ssm():
             Value=json.dumps({"api_key": "test-bitlaunch-key-456"}),
             Type="SecureString",
         )
+        ssm.put_parameter(
+            Name="/telegram-vps-bot/credentials/kamatera",
+            Value=json.dumps({"client_id": "test-client-id", "secret": "test-secret"}),
+            Type="SecureString",
+        )
         # ACL config
         ssm.put_parameter(
             Name="/telegram-vps-bot/acl-config",

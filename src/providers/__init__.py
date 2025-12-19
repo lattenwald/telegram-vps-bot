@@ -9,10 +9,12 @@ from typing import Type
 from config import config
 from providers.base import ProviderClient, ProviderError
 from providers.bitlaunch import BitLaunchClient
+from providers.kamatera import KamateraClient
 
 # Registry of available providers
 PROVIDERS: dict[str, Type[ProviderClient]] = {
     "bitlaunch": BitLaunchClient,
+    "kamatera": KamateraClient,
 }
 
 
@@ -58,7 +60,13 @@ def create_provider_client(provider: str) -> ProviderClient:
             raise ValueError("BitLaunch credentials missing 'api_key'")
         return BitLaunchClient(api_key=api_key)
 
-    # Future providers will be added here
+    if provider == "kamatera":
+        client_id = credentials.get("client_id")
+        secret = credentials.get("secret")
+        if not client_id or not secret:
+            raise ValueError("Kamatera credentials missing 'client_id' or 'secret'")
+        return KamateraClient(client_id=client_id, secret=secret)
+
     raise ValueError(f"No factory implementation for provider: {provider}")
 
 
@@ -66,6 +74,7 @@ __all__ = [
     "ProviderClient",
     "ProviderError",
     "BitLaunchClient",
+    "KamateraClient",
     "PROVIDERS",
     "get_provider_class",
     "create_provider_client",

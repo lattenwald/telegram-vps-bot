@@ -42,8 +42,7 @@ resource "aws_iam_role_policy" "ssm_parameter_access" {
           "ssm:GetParameters"
         ]
         Resource = [
-          "arn:aws:ssm:${var.aws_region}:*:parameter${var.ssm_telegram_token_path}",
-          "arn:aws:ssm:${var.aws_region}:*:parameter${var.ssm_bitlaunch_api_key_path}"
+          "arn:aws:ssm:${var.aws_region}:*:parameter/telegram-vps-bot/*"
         ]
       },
       {

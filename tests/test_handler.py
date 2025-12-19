@@ -7,7 +7,7 @@ import sys
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 import responses
@@ -203,6 +203,7 @@ def test_lambda_handler_help_command_authorized(
     request_body = json.loads(responses.calls[0].request.body)
     assert "/id" in request_body["text"]
     assert "/help" in request_body["text"]
+    assert "/find" in request_body["text"]
     assert "/reboot" in request_body["text"]
 
 
@@ -239,6 +240,7 @@ def test_lambda_handler_help_command_unauthorized(
     request_body = json.loads(responses.calls[0].request.body)
     assert "/id" in request_body["text"]
     assert "/help" in request_body["text"]
+    assert "/find" not in request_body["text"]
     assert "/reboot" not in request_body["text"]
 
 
@@ -318,3 +320,160 @@ def test_lambda_handler_no_message(lambda_context, mock_env_vars, mock_ssm):
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert body["status"] == "ignored"
+
+
+@responses.activate
+def test_lambda_handler_find_command_authorized_found(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /find command with authorized user - server found."""
+    from handler import lambda_handler
+
+    # Update event with find command
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/find test-server-1"
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message (success message)
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # Mock BitLaunch API
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Verify success message was sent
+    assert len(responses.calls) == 2  # BitLaunch + Telegram
+    # BitLaunch call is first (index 0), Telegram is second (index 1)
+    request_body = json.loads(responses.calls[1].request.body)
+    assert "found" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_find_command_authorized_not_found(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /find command with authorized user - server not found."""
+    from handler import lambda_handler
+
+    # Update event with find command for non-existent server
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/find nonexistent-server"
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message (error message)
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # Mock BitLaunch API
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Verify error message was sent
+    assert len(responses.calls) == 2  # BitLaunch + Telegram
+    # BitLaunch call is first (index 0), Telegram is second (index 1)
+    request_body = json.loads(responses.calls[1].request.body)
+    assert "not found" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_find_command_unauthorized(
+    sample_api_gateway_event, lambda_context, mock_env_vars, mock_ssm
+):
+    """Test /find command with unauthorized user."""
+    from handler import lambda_handler
+
+    # Update event with unauthorized user and find command
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["chat"]["id"] = 999999999  # Unauthorized chat ID
+    update["message"]["text"] = "/find test-server-1"
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message (access denied message)
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Verify access denied message was sent
+    assert len(responses.calls) == 1
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "Access denied" in request_body["text"]
+
+
+@responses.activate
+def test_lambda_handler_find_invalid_format(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    authorized_chat_id,
+):
+    """Test /find command with invalid format (no server name)."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    # Update event with find command without server name from authorized user
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/find"
+    update["message"]["chat"]["id"] = authorized_chat_id
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message (usage message)
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Verify usage message was sent
+    assert len(responses.calls) == 1
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "Usage:" in request_body["text"]

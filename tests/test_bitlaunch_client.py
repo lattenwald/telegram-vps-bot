@@ -10,7 +10,7 @@ import pytest
 import responses
 from requests.exceptions import Timeout
 
-from bitlaunch_client import BitLaunchClient, BitLaunchError
+from providers import BitLaunchClient, ProviderError
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def test_get_servers_authentication_failure(bitlaunch_client):
         status=401,
     )
 
-    with pytest.raises(BitLaunchError, match="Authentication failed"):
+    with pytest.raises(ProviderError, match="Authentication failed"):
         bitlaunch_client.get_servers()
 
 
@@ -61,7 +61,7 @@ def test_get_servers_rate_limit(bitlaunch_client):
         status=429,
     )
 
-    with pytest.raises(BitLaunchError, match="Rate limit exceeded"):
+    with pytest.raises(ProviderError, match="Rate limit exceeded"):
         bitlaunch_client.get_servers()
 
 
@@ -128,7 +128,7 @@ def test_reboot_server_not_found(bitlaunch_client, sample_bitlaunch_servers):
         status=200,
     )
 
-    with pytest.raises(BitLaunchError, match="not found"):
+    with pytest.raises(ProviderError, match="not found"):
         bitlaunch_client.reboot_server("non-existent-server")
 
 
@@ -150,7 +150,7 @@ def test_reboot_server_api_error(bitlaunch_client, sample_bitlaunch_servers):
         status=500,
     )
 
-    with pytest.raises(BitLaunchError, match="API error"):
+    with pytest.raises(ProviderError, match="API error"):
         bitlaunch_client.reboot_server("test-server-1")
 
 
@@ -159,5 +159,5 @@ def test_get_servers_timeout(bitlaunch_client):
     with responses.RequestsMock() as rsps:
         rsps.add(responses.GET, "https://api.bitlaunch.io/v1/servers", body=Timeout())
 
-        with pytest.raises(BitLaunchError, match="timed out"):
+        with pytest.raises(ProviderError, match="timed out"):
             bitlaunch_client.get_servers()

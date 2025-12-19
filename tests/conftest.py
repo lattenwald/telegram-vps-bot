@@ -15,6 +15,7 @@ def mock_env_vars():
     os.environ["BITLAUNCH_API_BASE_URL"] = "https://api.bitlaunch.io/v1"
     os.environ["SSM_TELEGRAM_TOKEN_PATH"] = "/telegram-vps-bot/telegram-token"
     os.environ["SSM_BITLAUNCH_API_KEY_PATH"] = "/telegram-vps-bot/bitlaunch-api-key"
+    os.environ["SSM_CREDENTIALS_PREFIX"] = "/telegram-vps-bot/credentials/"
     os.environ["LOG_LEVEL"] = "INFO"
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
@@ -26,6 +27,8 @@ def mock_env_vars():
     import importlib
 
     importlib.reload(config_module)
+    # Clear credentials cache on the reloaded config instance
+    config_module.config._credentials_cache = {}
 
     yield
 
@@ -35,6 +38,7 @@ def mock_env_vars():
         "BITLAUNCH_API_BASE_URL",
         "SSM_TELEGRAM_TOKEN_PATH",
         "SSM_BITLAUNCH_API_KEY_PATH",
+        "SSM_CREDENTIALS_PREFIX",
         "LOG_LEVEL",
         "AWS_DEFAULT_REGION",
     ]:
@@ -42,6 +46,7 @@ def mock_env_vars():
 
     # Clear cache again
     config_module.Config._ssm_cache = {}
+    config_module.config._credentials_cache = {}
 
 
 @pytest.fixture
@@ -61,6 +66,12 @@ def mock_ssm():
         ssm.put_parameter(
             Name="/telegram-vps-bot/bitlaunch-api-key",
             Value="test-bitlaunch-key-456",
+            Type="SecureString",
+        )
+        # New format: provider credentials as JSON
+        ssm.put_parameter(
+            Name="/telegram-vps-bot/credentials/bitlaunch",
+            Value=json.dumps({"api_key": "test-bitlaunch-key-456"}),
             Type="SecureString",
         )
 

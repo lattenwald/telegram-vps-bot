@@ -6,7 +6,6 @@ import sys
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import pytest
 
 
 def test_config_authorized_chat_ids(mock_env_vars):
@@ -128,11 +127,11 @@ def test_validate_missing_telegram_token(mock_env_vars, mock_ssm):
 
 
 def test_validate_missing_bitlaunch_key(mock_env_vars, mock_ssm):
-    """Test validation fails when BitLaunch API key is missing."""
+    """Test validation fails when BitLaunch credentials are missing."""
     from config import Config
 
-    # Change the path to a non-existent parameter
-    os.environ["SSM_BITLAUNCH_API_KEY_PATH"] = "/non-existent"
+    # Change the credentials prefix to a non-existent path
+    os.environ["SSM_CREDENTIALS_PREFIX"] = "/non-existent/credentials/"
 
     config = Config()
     assert config.validate() is False

@@ -3,6 +3,7 @@
 Handles loading environment variables and retrieving secrets from AWS SSM Parameter Store.
 """
 
+import json
 import logging
 import os
 from typing import Optional
@@ -31,9 +32,13 @@ class Config:
         self.ssm_bitlaunch_api_key_path = os.environ.get(
             "SSM_BITLAUNCH_API_KEY_PATH", "/telegram-vps-bot/bitlaunch-api-key"
         )
+        self.ssm_credentials_prefix = os.environ.get(
+            "SSM_CREDENTIALS_PREFIX", "/telegram-vps-bot/credentials/"
+        )
         self.log_level = os.environ.get("LOG_LEVEL", "INFO")
 
         self._ssm_client = None
+        self._credentials_cache: dict[str, dict] = {}
 
     def _parse_authorized_chat_ids(self) -> set:
         """Parse comma-separated authorized chat IDs from environment variable.
@@ -120,6 +125,42 @@ class Config:
         """
         return self.get_ssm_parameter(self.ssm_bitlaunch_api_key_path)
 
+    def get_provider_credentials(self, provider: str) -> dict:
+        """Get credentials for a provider from SSM.
+
+        Credentials are stored as JSON in SSM at:
+        {ssm_credentials_prefix}{provider}
+
+        Example for BitLaunch:
+        /telegram-vps-bot/credentials/bitlaunch -> {"api_key": "..."}
+
+        Example for Kamatera:
+        /telegram-vps-bot/credentials/kamatera -> {"client_id": "...", "secret": "..."}
+
+        Args:
+            provider: Provider name (e.g., 'bitlaunch', 'kamatera').
+
+        Returns:
+            dict: Credentials dictionary, or empty dict if not found.
+        """
+        if provider in self._credentials_cache:
+            return self._credentials_cache[provider]
+
+        param_path = f"{self.ssm_credentials_prefix}{provider}"
+        json_str = self.get_ssm_parameter(param_path)
+
+        if not json_str:
+            logger.warning(f"No credentials found for provider: {provider}")
+            return {}
+
+        try:
+            credentials = json.loads(json_str)
+            self._credentials_cache[provider] = credentials
+            return credentials
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in credentials for {provider}: {e}")
+            return {}
+
     def validate(self) -> bool:
         """Validate that all required configuration is present.
 
@@ -132,8 +173,10 @@ class Config:
             logger.error("Failed to retrieve Telegram token from SSM")
             is_valid = False
 
-        if not self.bitlaunch_api_key:
-            logger.error("Failed to retrieve BitLaunch API key from SSM")
+        # Check for BitLaunch credentials in new format
+        bitlaunch_creds = self.get_provider_credentials("bitlaunch")
+        if not bitlaunch_creds.get("api_key"):
+            logger.error("Failed to retrieve BitLaunch credentials from SSM")
             is_valid = False
 
         if not self.authorized_chat_ids:

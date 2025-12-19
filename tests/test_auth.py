@@ -6,7 +6,6 @@ import sys
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import pytest
 
 from auth import get_authorized_chat_ids, is_authorized
 
@@ -70,7 +69,6 @@ def test_get_authorized_chat_ids(mock_env_vars):
     import auth as auth_module
 
     importlib.reload(auth_module)
-    from auth import get_authorized_chat_ids
 
     authorized_ids = get_authorized_chat_ids()
     assert isinstance(authorized_ids, set)

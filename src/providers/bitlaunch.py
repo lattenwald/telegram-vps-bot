@@ -9,16 +9,12 @@ from typing import Dict, List, Optional
 import requests
 from requests.exceptions import RequestException, Timeout
 
+from providers.base import ProviderClient, ProviderError
+
 logger = logging.getLogger(__name__)
 
 
-class BitLaunchError(Exception):
-    """Base exception for BitLaunch API errors."""
-
-    pass
-
-
-class BitLaunchClient:
+class BitLaunchClient(ProviderClient):
     """Client for interacting with the BitLaunch API."""
 
     def __init__(self, api_key: str, base_url: str = "https://app.bitlaunch.io/api"):
@@ -30,7 +26,12 @@ class BitLaunchClient:
         """
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
-        self.timeout = 30  # 30 second timeout
+        self.timeout = 30
+
+    @property
+    def name(self) -> str:
+        """Return the provider name."""
+        return "bitlaunch"
 
     def _get_headers(self) -> Dict[str, str]:
         """Get HTTP headers for API requests.
@@ -51,7 +52,7 @@ class BitLaunchClient:
             list: List of server dictionaries.
 
         Raises:
-            BitLaunchError: If the API request fails.
+            ProviderError: If the API request fails.
         """
         url = f"{self.base_url}/servers"
 
@@ -68,23 +69,23 @@ class BitLaunchClient:
 
             elif response.status_code == 401:
                 logger.error("BitLaunch API authentication failed")
-                raise BitLaunchError("Authentication failed - check API key")
+                raise ProviderError("Authentication failed - check API key")
 
             elif response.status_code == 429:
                 logger.error("BitLaunch API rate limit exceeded")
-                raise BitLaunchError("Rate limit exceeded - try again later")
+                raise ProviderError("Rate limit exceeded - try again later")
 
             else:
                 logger.error(f"BitLaunch API error: {response.status_code}")
-                raise BitLaunchError(f"API error: {response.status_code}")
+                raise ProviderError(f"API error: {response.status_code}")
 
         except Timeout:
             logger.error("BitLaunch API request timed out")
-            raise BitLaunchError("Request timed out - BitLaunch API unavailable")
+            raise ProviderError("Request timed out - BitLaunch API unavailable")
 
         except RequestException as e:
             logger.error(f"BitLaunch API request failed: {e}")
-            raise BitLaunchError("Network error - BitLaunch API unavailable")
+            raise ProviderError("Network error - BitLaunch API unavailable")
 
     def find_server_by_name(self, server_name: str) -> Optional[Dict]:
         """Find a server by its name.
@@ -96,7 +97,7 @@ class BitLaunchClient:
             dict: Server information if found, None otherwise.
 
         Raises:
-            BitLaunchError: If the API request fails.
+            ProviderError: If the API request fails.
         """
         servers = self.get_servers()
 
@@ -118,12 +119,12 @@ class BitLaunchClient:
             bool: True if reboot was successful, False otherwise.
 
         Raises:
-            BitLaunchError: If the API request fails or server is not found.
+            ProviderError: If the API request fails or server is not found.
         """
         server = self.find_server_by_name(server_name)
 
         if not server:
-            raise BitLaunchError(f"Server '{server_name}' not found")
+            raise ProviderError(f"Server '{server_name}' not found")
 
         server_id = server.get("id")
         url = f"{self.base_url}/servers/{server_id}/restart"
@@ -140,24 +141,24 @@ class BitLaunchClient:
 
             elif response.status_code == 401:
                 logger.error("BitLaunch API authentication failed")
-                raise BitLaunchError("Authentication failed - check API key")
+                raise ProviderError("Authentication failed - check API key")
 
             elif response.status_code == 404:
                 logger.error(f"Server not found: {server_id}")
-                raise BitLaunchError(f"Server '{server_name}' not found")
+                raise ProviderError(f"Server '{server_name}' not found")
 
             elif response.status_code == 429:
                 logger.error("BitLaunch API rate limit exceeded")
-                raise BitLaunchError("Rate limit exceeded - try again later")
+                raise ProviderError("Rate limit exceeded - try again later")
 
             else:
                 logger.error(f"BitLaunch API error: {response.status_code}")
-                raise BitLaunchError(f"API error: {response.status_code}")
+                raise ProviderError(f"API error: {response.status_code}")
 
         except Timeout:
             logger.error("BitLaunch API request timed out")
-            raise BitLaunchError("Request timed out - BitLaunch API unavailable")
+            raise ProviderError("Request timed out - BitLaunch API unavailable")
 
         except RequestException as e:
             logger.error(f"BitLaunch API request failed: {e}")
-            raise BitLaunchError("Network error - BitLaunch API unavailable")
+            raise ProviderError("Network error - BitLaunch API unavailable")

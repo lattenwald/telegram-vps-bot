@@ -8,14 +8,29 @@ import logging
 from typing import Any, Dict, Optional
 
 from auth import is_authorized
-from bitlaunch_client import BitLaunchClient, BitLaunchError
 from config import config
+from providers import ProviderClient, ProviderError, create_provider_client
 from telegram_client import TelegramClient, TelegramError
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def escape_markdown(text: str) -> str:
+    """Escape special characters for Telegram Markdown.
+
+    Args:
+        text: Text to escape.
+
+    Returns:
+        str: Escaped text safe for Markdown parse mode.
+    """
+    escape_chars = ["_", "*", "`", "["]
+    for char in escape_chars:
+        text = text.replace(char, f"\\{char}")
+    return text
 
 
 def parse_telegram_update(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -106,6 +121,7 @@ def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
             "Available commands:\n"
             "/id - Get your chat ID\n"
             "/help - Show this help message\n"
+            "/find <server_name> - Find a server\n"
             "/reboot <server_name> - Reboot a server"
         )
     else:
@@ -121,14 +137,79 @@ def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
         logger.error(f"Failed to send help message: {e}")
 
 
+def handle_find_command(
+    telegram: TelegramClient, provider: ProviderClient, chat_id: int, server_name: str
+) -> None:
+    """Handle /find command - find a server by name.
+
+    Args:
+        telegram: TelegramClient instance.
+        provider: Provider client instance.
+        chat_id: Telegram chat ID.
+        server_name: Name of the server to find.
+    """
+    logger.info(f"Handling /find command for server: {server_name}")
+
+    if not is_authorized(chat_id):
+        logger.warning(f"Unauthorized /find attempt from chat_id: {chat_id}")
+        try:
+            telegram.send_message(
+                chat_id,
+                "❌ Access denied. Use /id to get your chat ID and request authorization.",
+            )
+        except TelegramError:
+            pass
+        return
+
+    if not server_name:
+        try:
+            telegram.send_message(chat_id, "❌ Usage: /find <server_name>")
+        except TelegramError:
+            pass
+        return
+
+    try:
+        server = provider.find_server_by_name(server_name)
+        escaped_name = escape_markdown(server_name)
+        if server:
+            telegram.send_success_message(
+                chat_id,
+                f"Server `{escaped_name}` found on {provider.name}",
+                parse_mode="Markdown",
+            )
+            logger.info(f"Found server: {server_name}")
+        else:
+            telegram.send_error_message(
+                chat_id,
+                f"Server `{escaped_name}` not found",
+                parse_mode="Markdown",
+            )
+            logger.info(f"Server not found: {server_name}")
+
+    except ProviderError as e:
+        error_message = str(e)
+        logger.error(f"Provider error: {error_message}")
+
+        if "authentication" in error_message.lower():
+            telegram.send_error_message(
+                chat_id, "Configuration error - contact administrator"
+            )
+        elif "rate limit" in error_message.lower():
+            telegram.send_error_message(chat_id, "Too many requests - try again later")
+        else:
+            telegram.send_error_message(
+                chat_id, "Unable to search servers - try again later"
+            )
+
+
 def handle_reboot_command(
-    telegram: TelegramClient, bitlaunch: BitLaunchClient, chat_id: int, server_name: str
+    telegram: TelegramClient, provider: ProviderClient, chat_id: int, server_name: str
 ) -> None:
     """Handle /reboot command - reboot a VPS server.
 
     Args:
         telegram: TelegramClient instance.
-        bitlaunch: BitLaunchClient instance.
+        provider: Provider client instance.
         chat_id: Telegram chat ID.
         server_name: Name of the server to reboot.
     """
@@ -160,13 +241,13 @@ def handle_reboot_command(
         pass
 
     try:
-        bitlaunch.reboot_server(server_name)
+        provider.reboot_server(server_name)
         telegram.send_success_message(chat_id, f"Server `{server_name}` is rebooting")
         logger.info(f"Successfully rebooted server: {server_name}")
 
-    except BitLaunchError as e:
+    except ProviderError as e:
         error_message = str(e)
-        logger.error(f"BitLaunch error: {error_message}")
+        logger.error(f"Provider error: {error_message}")
 
         if "not found" in error_message.lower():
             telegram.send_error_message(chat_id, f"Server '{server_name}' not found")
@@ -183,7 +264,7 @@ def handle_reboot_command(
 
 
 def process_command(
-    telegram: TelegramClient, bitlaunch: BitLaunchClient, chat_id: int, text: str
+    telegram: TelegramClient, provider: ProviderClient, chat_id: int, text: str
 ) -> None:
     """Process a command from a Telegram message.
 
@@ -192,7 +273,7 @@ def process_command(
 
     Args:
         telegram: TelegramClient instance.
-        bitlaunch: BitLaunchClient instance.
+        provider: Provider client instance.
         chat_id: Telegram chat ID.
         text: Message text containing the command.
     """
@@ -205,9 +286,13 @@ def process_command(
     elif command == "/help":
         handle_help_command(telegram, chat_id)
 
+    elif command == "/find":
+        server_name = parts[1] if len(parts) > 1 else ""
+        handle_find_command(telegram, provider, chat_id, server_name)
+
     elif command == "/reboot":
         server_name = parts[1] if len(parts) > 1 else ""
-        handle_reboot_command(telegram, bitlaunch, chat_id, server_name)
+        handle_reboot_command(telegram, provider, chat_id, server_name)
 
     else:
         # Silently ignore all other commands (including /start)
@@ -235,9 +320,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
 
         telegram = TelegramClient(config.telegram_token)
-        bitlaunch = BitLaunchClient(
-            config.bitlaunch_api_key, config.bitlaunch_api_base_url
-        )
+        provider = create_provider_client("bitlaunch")
 
         update = parse_telegram_update(event)
         if not update:
@@ -255,7 +338,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         logger.info(f"Processing message from chat_id: {chat_id}")
 
         if text.startswith("/"):
-            process_command(telegram, bitlaunch, chat_id, text)
+            process_command(telegram, provider, chat_id, text)
         else:
             logger.info("Non-command message - ignoring")
 

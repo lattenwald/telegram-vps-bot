@@ -172,13 +172,23 @@ aws logs filter-log-events \
 
 ---
 
+## Active Tasks
+
+| Task | Description | Status | Depends On |
+|------|-------------|--------|------------|
+| [TASK-001](tasks/TASK-001-multi-provider-acl.md) | Multi-provider ACL with Kamatera support | 🚧 In Progress | - |
+| [TASK-002](tasks/TASK-002-dynamodb-caching.md) | DynamoDB caching for server-provider mapping | ⏸️ Postponed | TASK-001 |
+| [TASK-003](tasks/TASK-003-bot-admin-commands.md) | Bot admin commands for ACL management | ⏸️ Postponed | TASK-001 |
+
+---
+
 ## Navigator Workflow
 
 ### Task Management
 Tasks are stored in `.agent/tasks/` with format:
 ```
-TASK-001-add-status-command.md
-TASK-002-implement-server-listing.md
+TASK-001-multi-provider-acl.md
+TASK-002-dynamodb-caching.md
 ```
 
 ### SOPs (Standard Operating Procedures)

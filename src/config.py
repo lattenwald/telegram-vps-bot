@@ -6,12 +6,77 @@ Handles loading environment variables and retrieving secrets from AWS SSM Parame
 import json
 import logging
 import os
+from dataclasses import dataclass, field
 from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
+
+SSM_ACL_PATH = "/telegram-vps-bot/acl-config"
+
+
+@dataclass
+class ProviderAccess:
+    """Access configuration for a single provider."""
+
+    servers: list[str] | None = None  # None = all servers, [] = no access
+
+    def can_access_server(self, server_name: str) -> bool:
+        """Check if user can access a specific server."""
+        if self.servers is None:
+            return True  # All servers allowed
+        if not self.servers:
+            return False  # Empty list = no access
+        return server_name in self.servers
+
+
+@dataclass
+class ACLConfig:
+    """Access Control List configuration."""
+
+    admins: set[int] = field(default_factory=set)
+    users: dict[int, dict[str, ProviderAccess]] = field(default_factory=dict)
+
+    def is_admin(self, chat_id: int) -> bool:
+        """Check if chat_id is an admin."""
+        return chat_id in self.admins
+
+    def get_user_providers(self, chat_id: int) -> list[str]:
+        """Get list of providers the user has access to."""
+        if self.is_admin(chat_id):
+            return []  # Admins handled separately - have access to all
+        return list(self.users.get(chat_id, {}).keys())
+
+    def can_access(
+        self, chat_id: int, provider: str | None = None, server: str | None = None
+    ) -> bool:
+        """Check if user can access provider/server."""
+        # Admins have full access
+        if self.is_admin(chat_id):
+            return True
+
+        # Check user permissions
+        user_providers = self.users.get(chat_id)
+        if not user_providers:
+            return False
+
+        # No provider specified - check if user has any access
+        if provider is None:
+            return bool(user_providers)
+
+        # Check provider access
+        provider_access = user_providers.get(provider)
+        if provider_access is None:
+            return False
+
+        # No server specified - user has provider access
+        if server is None:
+            return True
+
+        # Check server access
+        return provider_access.can_access_server(server)
 
 
 class Config:
@@ -39,6 +104,7 @@ class Config:
 
         self._ssm_client = None
         self._credentials_cache: dict[str, dict] = {}
+        self._acl_cache: ACLConfig | None = None
 
     def _parse_authorized_chat_ids(self) -> set:
         """Parse comma-separated authorized chat IDs from environment variable.
@@ -161,6 +227,56 @@ class Config:
             logger.error(f"Invalid JSON in credentials for {provider}: {e}")
             return {}
 
+    @property
+    def acl_config(self) -> ACLConfig:
+        """Get ACL configuration from SSM.
+
+        Returns:
+            ACLConfig: Parsed ACL configuration.
+        """
+        if self._acl_cache is not None:
+            return self._acl_cache
+
+        json_str = self.get_ssm_parameter(SSM_ACL_PATH)
+        if not json_str:
+            logger.warning("No ACL config found in SSM, returning empty ACL")
+            self._acl_cache = ACLConfig()
+            return self._acl_cache
+
+        try:
+            data = json.loads(json_str)
+            self._acl_cache = self._parse_acl(data)
+            logger.info("Loaded ACL config from SSM")
+            return self._acl_cache
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.error(f"Invalid ACL config in SSM: {e}")
+            self._acl_cache = ACLConfig()
+            return self._acl_cache
+
+    def _parse_acl(self, data: dict) -> ACLConfig:
+        """Parse ACL JSON data into ACLConfig object.
+
+        Args:
+            data: Raw ACL data from SSM.
+
+        Returns:
+            ACLConfig: Parsed configuration.
+        """
+        admins = set(data.get("admins", []))
+
+        users: dict[int, dict[str, ProviderAccess]] = {}
+        for user_id_str, providers in data.get("users", {}).items():
+            user_id = int(user_id_str)
+            users[user_id] = {}
+            for provider_name, provider_config in providers.items():
+                if provider_config is None:
+                    users[user_id][provider_name] = ProviderAccess()
+                else:
+                    servers = provider_config.get("servers")
+                    users[user_id][provider_name] = ProviderAccess(servers=servers)
+
+        return ACLConfig(admins=admins, users=users)
+
     def validate(self) -> bool:
         """Validate that all required configuration is present.
 
@@ -179,8 +295,10 @@ class Config:
             logger.error("Failed to retrieve BitLaunch credentials from SSM")
             is_valid = False
 
-        if not self.authorized_chat_ids:
-            logger.warning("No authorized chat IDs configured")
+        # Check ACL config
+        acl = self.acl_config
+        if not acl.admins and not acl.users:
+            logger.warning("No users configured in ACL")
 
         return is_valid
 

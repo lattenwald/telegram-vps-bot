@@ -150,7 +150,7 @@ def handle_find_command(
     """
     logger.info(f"Handling /find command for server: {server_name}")
 
-    if not is_authorized(chat_id):
+    if not is_authorized(chat_id, provider=provider.name):
         logger.warning(f"Unauthorized /find attempt from chat_id: {chat_id}")
         try:
             telegram.send_message(
@@ -215,7 +215,7 @@ def handle_reboot_command(
     """
     logger.info(f"Handling /reboot command for server: {server_name}")
 
-    if not is_authorized(chat_id):
+    if not is_authorized(chat_id, provider=provider.name):
         logger.warning(f"Unauthorized /reboot attempt from chat_id: {chat_id}")
         try:
             telegram.send_message(

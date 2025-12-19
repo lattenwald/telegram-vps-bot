@@ -27,8 +27,9 @@ def mock_env_vars():
     import importlib
 
     importlib.reload(config_module)
-    # Clear credentials cache on the reloaded config instance
+    # Clear credentials and ACL cache on the reloaded config instance
     config_module.config._credentials_cache = {}
+    config_module.config._acl_cache = None
 
     yield
 
@@ -47,6 +48,7 @@ def mock_env_vars():
     # Clear cache again
     config_module.Config._ssm_cache = {}
     config_module.config._credentials_cache = {}
+    config_module.config._acl_cache = None
 
 
 @pytest.fixture
@@ -72,6 +74,17 @@ def mock_ssm():
         ssm.put_parameter(
             Name="/telegram-vps-bot/credentials/bitlaunch",
             Value=json.dumps({"api_key": "test-bitlaunch-key-456"}),
+            Type="SecureString",
+        )
+        # ACL config
+        ssm.put_parameter(
+            Name="/telegram-vps-bot/acl-config",
+            Value=json.dumps(
+                {
+                    "admins": [123456789],
+                    "users": {"987654321": {"bitlaunch": {"servers": None}}},
+                }
+            ),
             Type="SecureString",
         )
 

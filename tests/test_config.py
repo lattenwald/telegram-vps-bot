@@ -7,7 +7,6 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
-
 def test_config_authorized_chat_ids(mock_env_vars):
     """Test parsing authorized chat IDs from environment."""
     from config import Config

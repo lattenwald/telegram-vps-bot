@@ -1,0 +1,16 @@
+# ACL configuration for telegram-vps-bot
+#
+# Migrated from AUTHORIZED_CHAT_IDS env var
+# Previous setting: "122247178,370823094"
+#
+# Server access rules:
+#   - servers omitted or null → all servers allowed
+#   - servers: [] → access denied (explicit block)
+#   - servers: ["a", "b"] → only those servers
+
+admins:
+  - 122247178        # Full access to all providers/servers
+
+users:
+  "370823094":
+    bitlaunch: {}    # All BitLaunch servers

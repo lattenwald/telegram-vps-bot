@@ -3,14 +3,12 @@
 
 This script registers bot commands with Telegram, setting different command sets for:
 - Default scope (all users): /id, /help
-- Authorized users (specific chat IDs): /id, /help, /reboot
+- Authorized users (admins and users from ACL): /id, /help, /find, /reboot
 
 Usage:
     python scripts/setup_commands.py
 
 Environment Variables:
-    TELEGRAM_BOT_TOKEN: Telegram bot token (or read from AWS SSM)
-    AUTHORIZED_CHAT_IDS: Comma-separated list of authorized chat IDs
     AWS_REGION: AWS region for SSM (default: us-east-1)
 """
 
@@ -18,7 +16,6 @@ import logging
 import os
 import sys
 
-# Add src directory to path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from config import config
@@ -30,6 +27,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Command definitions
+DEFAULT_COMMANDS = [
+    {"command": "id", "description": "Get your Telegram chat ID"},
+    {"command": "help", "description": "Show available commands"},
+]
+
+AUTHORIZED_COMMANDS = [
+    {"command": "id", "description": "Get your Telegram chat ID"},
+    {"command": "help", "description": "Show available commands"},
+    {"command": "find", "description": "Find a server by name"},
+    {"command": "reboot", "description": "Reboot a server"},
+]
+
+
 def setup_default_commands(client: TelegramClient) -> bool:
     """Set commands for all users (default scope).
 
@@ -39,17 +50,12 @@ def setup_default_commands(client: TelegramClient) -> bool:
     Returns:
         bool: True if successful, False otherwise.
     """
-    commands = [
-        {"command": "id", "description": "Get your Telegram chat ID"},
-        {"command": "help", "description": "Show available commands"},
-    ]
-
     logger.info("Setting default commands for all users...")
-    return client.set_my_commands(commands)
+    return client.set_my_commands(DEFAULT_COMMANDS)
 
 
-def setup_authorized_commands(client: TelegramClient, chat_id: int) -> bool:
-    """Set commands for authorized users (specific chat scope).
+def setup_user_commands(client: TelegramClient, chat_id: int) -> bool:
+    """Set commands for an authorized user (specific chat scope).
 
     Args:
         client: TelegramClient instance.
@@ -58,16 +64,22 @@ def setup_authorized_commands(client: TelegramClient, chat_id: int) -> bool:
     Returns:
         bool: True if successful, False otherwise.
     """
-    commands = [
-        {"command": "id", "description": "Get your Telegram chat ID"},
-        {"command": "help", "description": "Show available commands"},
-        {"command": "reboot", "description": "Reboot a server"},
-    ]
-
     scope = {"type": "chat", "chat_id": chat_id}
 
     logger.info(f"Setting authorized commands for chat_id: {chat_id}...")
-    return client.set_my_commands(commands, scope=scope)
+    return client.set_my_commands(AUTHORIZED_COMMANDS, scope=scope)
+
+
+def get_all_authorized_chat_ids() -> set[int]:
+    """Get all authorized chat IDs from ACL config.
+
+    Returns:
+        set[int]: All chat IDs that have any access (admins + users).
+    """
+    acl = config.acl_config
+    all_ids = set(acl.admins)
+    all_ids.update(acl.users.keys())
+    return all_ids
 
 
 def main():
@@ -75,16 +87,20 @@ def main():
     try:
         bot_token = config.telegram_token
         if not bot_token:
-            logger.error("TELEGRAM_TOKEN not found in environment or SSM")
+            logger.error("Telegram token not found in SSM")
             sys.exit(1)
 
-        authorized_chat_ids = config.authorized_chat_ids
-        if not authorized_chat_ids:
+        authorized_ids = get_all_authorized_chat_ids()
+        acl = config.acl_config
+
+        logger.info(f"Found {len(acl.admins)} admin(s)")
+        logger.info(f"Found {len(acl.users)} user(s)")
+        logger.info(f"Total authorized chat IDs: {len(authorized_ids)}")
+
+        if not authorized_ids:
             logger.warning(
-                "No AUTHORIZED_CHAT_IDS configured - skipping authorized commands"
+                "No authorized chat IDs in ACL - only setting default commands"
             )
-        else:
-            logger.info(f"Found {len(authorized_chat_ids)} authorized chat IDs")
 
         client = TelegramClient(bot_token)
 
@@ -95,13 +111,14 @@ def main():
             logger.warning("⚠ Failed to set default commands (non-critical)")
 
         success_count = 0
-        for chat_id in authorized_chat_ids:
-            if setup_authorized_commands(client, chat_id):
+        for chat_id in authorized_ids:
+            user_type = "admin" if chat_id in acl.admins else "user"
+            if setup_user_commands(client, chat_id):
                 success_count += 1
-                logger.info(f"✓ Authorized commands set for chat_id: {chat_id}")
+                logger.info(f"✓ Commands set for {user_type} chat_id: {chat_id}")
             else:
                 logger.warning(
-                    f"⚠ Failed to set authorized commands for chat_id: {chat_id} "
+                    f"⚠ Failed to set commands for {user_type} chat_id: {chat_id} "
                     f"(user may not have chatted with bot yet)"
                 )
 
@@ -110,12 +127,13 @@ def main():
         logger.info(
             f"  Default commands: {'✓ Success' if success_default else '⚠ Failed'}"
         )
+        logger.info(f"  Admins: {len(acl.admins)}")
+        logger.info(f"  Users: {len(acl.users)}")
         logger.info(
-            f"  Authorized chats: {success_count}/{len(authorized_chat_ids)} successful"
+            f"  Authorized chats configured: {success_count}/{len(authorized_ids)}"
         )
         logger.info("=" * 50)
 
-        # Exit with success even if some authorized commands failed (non-critical)
         sys.exit(0)
 
     except Exception as e:

@@ -32,7 +32,11 @@ class TelegramClient:
         self.timeout = 30  # 30 second timeout
 
     def send_message(
-        self, chat_id: int, text: str, parse_mode: Optional[str] = None
+        self,
+        chat_id: int,
+        text: str,
+        parse_mode: Optional[str] = None,
+        reply_to_message_id: Optional[int] = None,
     ) -> bool:
         """Send a message to a Telegram chat.
 
@@ -40,6 +44,7 @@ class TelegramClient:
             chat_id: Telegram chat ID to send the message to.
             text: Text content of the message.
             parse_mode: Optional parse mode (Markdown, HTML).
+            reply_to_message_id: Optional message ID to reply to.
 
         Returns:
             bool: True if message was sent successfully, False otherwise.
@@ -49,10 +54,13 @@ class TelegramClient:
         """
         url = f"{self.base_url}/sendMessage"
 
-        payload = {"chat_id": chat_id, "text": text}
+        payload: Dict[str, Any] = {"chat_id": chat_id, "text": text}
 
         if parse_mode:
             payload["parse_mode"] = parse_mode
+
+        if reply_to_message_id:
+            payload["reply_parameters"] = {"message_id": reply_to_message_id}
 
         try:
             logger.info(f"Sending message to chat_id: {chat_id}")
@@ -79,7 +87,11 @@ class TelegramClient:
             raise TelegramError("Network error - Telegram API unavailable")
 
     def send_error_message(
-        self, chat_id: int, error_message: str, parse_mode: Optional[str] = None
+        self,
+        chat_id: int,
+        error_message: str,
+        parse_mode: Optional[str] = None,
+        reply_to_message_id: Optional[int] = None,
     ) -> bool:
         """Send an error message to a Telegram chat.
 
@@ -87,20 +99,28 @@ class TelegramClient:
             chat_id: Telegram chat ID to send the error message to.
             error_message: Error message to send.
             parse_mode: Optional parse mode ("Markdown" or "HTML").
+            reply_to_message_id: Optional message ID to reply to.
 
         Returns:
             bool: True if message was sent successfully, False otherwise.
         """
         try:
             return self.send_message(
-                chat_id, f"❌ Error: {error_message}", parse_mode=parse_mode
+                chat_id,
+                f"❌ Error: {error_message}",
+                parse_mode=parse_mode,
+                reply_to_message_id=reply_to_message_id,
             )
         except TelegramError as e:
             logger.error(f"Failed to send error message: {e}")
             return False
 
     def send_success_message(
-        self, chat_id: int, message: str, parse_mode: Optional[str] = None
+        self,
+        chat_id: int,
+        message: str,
+        parse_mode: Optional[str] = None,
+        reply_to_message_id: Optional[int] = None,
     ) -> bool:
         """Send a success message to a Telegram chat.
 
@@ -108,12 +128,18 @@ class TelegramClient:
             chat_id: Telegram chat ID to send the success message to.
             message: Success message to send.
             parse_mode: Optional parse mode ("Markdown" or "HTML").
+            reply_to_message_id: Optional message ID to reply to.
 
         Returns:
             bool: True if message was sent successfully, False otherwise.
         """
         try:
-            return self.send_message(chat_id, f"✓ {message}", parse_mode=parse_mode)
+            return self.send_message(
+                chat_id,
+                f"✓ {message}",
+                parse_mode=parse_mode,
+                reply_to_message_id=reply_to_message_id,
+            )
         except TelegramError as e:
             logger.error(f"Failed to send success message: {e}")
             return False

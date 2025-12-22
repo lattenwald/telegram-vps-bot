@@ -153,23 +153,31 @@ def extract_message_info(update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
-def handle_id_command(telegram: TelegramClient, chat_id: int) -> None:
+def handle_id_command(
+    telegram: TelegramClient, chat_id: int, message_id: Optional[int] = None
+) -> None:
     """Handle /id command - return user's chat ID.
 
     Args:
         telegram: TelegramClient instance.
         chat_id: Telegram chat ID.
+        message_id: Optional message ID to reply to.
     """
     logger.info(f"Handling /id command for chat_id: {chat_id}")
     try:
         telegram.send_message(
-            chat_id, f"Your chat ID: `{chat_id}`", parse_mode="Markdown"
+            chat_id,
+            f"Your chat ID: `{chat_id}`",
+            parse_mode="Markdown",
+            reply_to_message_id=message_id,
         )
     except TelegramError as e:
         logger.error(f"Failed to send chat ID: {e}")
 
 
-def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
+def handle_help_command(
+    telegram: TelegramClient, chat_id: int, message_id: Optional[int] = None
+) -> None:
     """Handle /help command - show available commands.
 
     Shows different command lists based on authorization:
@@ -179,6 +187,7 @@ def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
     Args:
         telegram: TelegramClient instance.
         chat_id: Telegram chat ID.
+        message_id: Optional message ID to reply to.
     """
     logger.info(f"Handling /help command for chat_id: {chat_id}")
 
@@ -200,13 +209,16 @@ def handle_help_command(telegram: TelegramClient, chat_id: int) -> None:
         )
 
     try:
-        telegram.send_message(chat_id, help_text)
+        telegram.send_message(chat_id, help_text, reply_to_message_id=message_id)
     except TelegramError as e:
         logger.error(f"Failed to send help message: {e}")
 
 
 def handle_find_command(
-    telegram: TelegramClient, chat_id: int, server_arg: str
+    telegram: TelegramClient,
+    chat_id: int,
+    server_arg: str,
+    message_id: Optional[int] = None,
 ) -> None:
     """Handle /find command - find a server by name.
 
@@ -218,6 +230,7 @@ def handle_find_command(
         telegram: TelegramClient instance.
         chat_id: Telegram chat ID.
         server_arg: Server argument (optionally with provider prefix).
+        message_id: Optional message ID to reply to.
     """
     if not server_arg:
         try:
@@ -225,6 +238,7 @@ def handle_find_command(
                 chat_id,
                 "❌ Usage: /find <server\\_name> or /find <provider:server\\_name>",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
         except TelegramError:
             pass
@@ -238,12 +252,12 @@ def handle_find_command(
     escaped_name = escape_markdown(server_name)
 
     if provider_name:
-        # Explicit provider specified
         if provider_name not in PROVIDERS:
             telegram.send_error_message(
                 chat_id,
                 f"Unknown provider `{provider_name}`. Available: {', '.join(PROVIDERS.keys())}",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -253,6 +267,7 @@ def handle_find_command(
                 chat_id,
                 f"❌ Access denied for provider `{provider_name}`",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -264,23 +279,25 @@ def handle_find_command(
                     chat_id,
                     f"Server `{escaped_name}` found on {provider_name}",
                     parse_mode="Markdown",
+                    reply_to_message_id=message_id,
                 )
             else:
                 telegram.send_error_message(
                     chat_id,
                     f"Server `{escaped_name}` not found on {provider_name}",
                     parse_mode="Markdown",
+                    reply_to_message_id=message_id,
                 )
         except ProviderError as e:
-            _handle_provider_error(telegram, chat_id, e)
+            _handle_provider_error(telegram, chat_id, e, message_id)
 
     else:
-        # No provider specified - search all allowed providers
         if not is_authorized(chat_id):
             logger.warning(f"Unauthorized /find attempt from chat_id: {chat_id}")
             telegram.send_error_message(
                 chat_id,
                 "❌ Access denied. Use /id to get your chat ID and request authorization.",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -291,6 +308,7 @@ def handle_find_command(
                 chat_id,
                 f"Server `{escaped_name}` found on {provider.name}",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
         else:
             providers = get_allowed_providers(chat_id)
@@ -298,11 +316,15 @@ def handle_find_command(
                 chat_id,
                 f"Server `{escaped_name}` not found on any provider ({', '.join(providers)})",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
 
 
 def _handle_provider_error(
-    telegram: TelegramClient, chat_id: int, e: ProviderError
+    telegram: TelegramClient,
+    chat_id: int,
+    e: ProviderError,
+    message_id: Optional[int] = None,
 ) -> None:
     """Handle provider errors with user-friendly messages."""
     error_message = str(e)
@@ -310,18 +332,29 @@ def _handle_provider_error(
 
     if "authentication" in error_message.lower():
         telegram.send_error_message(
-            chat_id, "Configuration error - contact administrator"
+            chat_id,
+            "Configuration error - contact administrator",
+            reply_to_message_id=message_id,
         )
     elif "rate limit" in error_message.lower():
-        telegram.send_error_message(chat_id, "Too many requests - try again later")
+        telegram.send_error_message(
+            chat_id,
+            "Too many requests - try again later",
+            reply_to_message_id=message_id,
+        )
     else:
         telegram.send_error_message(
-            chat_id, "Unable to complete request - try again later"
+            chat_id,
+            "Unable to complete request - try again later",
+            reply_to_message_id=message_id,
         )
 
 
 def handle_reboot_command(
-    telegram: TelegramClient, chat_id: int, server_arg: str
+    telegram: TelegramClient,
+    chat_id: int,
+    server_arg: str,
+    message_id: Optional[int] = None,
 ) -> None:
     """Handle /reboot command - reboot a VPS server.
 
@@ -333,6 +366,7 @@ def handle_reboot_command(
         telegram: TelegramClient instance.
         chat_id: Telegram chat ID.
         server_arg: Server argument (optionally with provider prefix).
+        message_id: Optional message ID to reply to.
     """
     if not server_arg:
         try:
@@ -340,6 +374,7 @@ def handle_reboot_command(
                 chat_id,
                 "❌ Usage: /reboot <server\\_name> or /reboot <provider:server\\_name>",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
         except TelegramError:
             pass
@@ -353,12 +388,12 @@ def handle_reboot_command(
     escaped_name = escape_markdown(server_name)
 
     if provider_name:
-        # Explicit provider specified
         if provider_name not in PROVIDERS:
             telegram.send_error_message(
                 chat_id,
                 f"Unknown provider `{provider_name}`. Available: {', '.join(PROVIDERS.keys())}",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -368,6 +403,7 @@ def handle_reboot_command(
                 chat_id,
                 f"❌ Access denied for provider `{provider_name}`",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -376,6 +412,7 @@ def handle_reboot_command(
                 chat_id,
                 f"Rebooting `{escaped_name}` on {provider_name}...",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
         except TelegramError:
             pass
@@ -387,20 +424,21 @@ def handle_reboot_command(
                 chat_id,
                 f"Server `{escaped_name}` is rebooting on {provider_name}",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             logger.info(
                 f"Successfully rebooted server: {server_name} on {provider_name}"
             )
         except ProviderError as e:
-            _handle_reboot_error(telegram, chat_id, server_name, e)
+            _handle_reboot_error(telegram, chat_id, server_name, e, message_id)
 
     else:
-        # No provider specified - find server across all providers first
         if not is_authorized(chat_id):
             logger.warning(f"Unauthorized /reboot attempt from chat_id: {chat_id}")
             telegram.send_error_message(
                 chat_id,
                 "❌ Access denied. Use /id to get your chat ID and request authorization.",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -411,6 +449,7 @@ def handle_reboot_command(
                 chat_id,
                 f"Server `{escaped_name}` not found on any provider ({', '.join(providers)})",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             return
 
@@ -421,6 +460,7 @@ def handle_reboot_command(
                 chat_id,
                 f"Rebooting `{escaped_name}` on {provider.name}...",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
         except TelegramError:
             pass
@@ -431,36 +471,55 @@ def handle_reboot_command(
                 chat_id,
                 f"Server `{escaped_name}` is rebooting on {provider.name}",
                 parse_mode="Markdown",
+                reply_to_message_id=message_id,
             )
             logger.info(
                 f"Successfully rebooted server: {server_name} on {provider.name}"
             )
         except ProviderError as e:
-            _handle_reboot_error(telegram, chat_id, server_name, e)
+            _handle_reboot_error(telegram, chat_id, server_name, e, message_id)
 
 
 def _handle_reboot_error(
-    telegram: TelegramClient, chat_id: int, server_name: str, e: ProviderError
+    telegram: TelegramClient,
+    chat_id: int,
+    server_name: str,
+    e: ProviderError,
+    message_id: Optional[int] = None,
 ) -> None:
     """Handle reboot-specific provider errors."""
     error_message = str(e)
     logger.error(f"Provider error during reboot: {error_message}")
 
     if "not found" in error_message.lower():
-        telegram.send_error_message(chat_id, f"Server '{server_name}' not found")
+        telegram.send_error_message(
+            chat_id,
+            f"Server '{server_name}' not found",
+            reply_to_message_id=message_id,
+        )
     elif "authentication" in error_message.lower():
         telegram.send_error_message(
-            chat_id, "Configuration error - contact administrator"
+            chat_id,
+            "Configuration error - contact administrator",
+            reply_to_message_id=message_id,
         )
     elif "rate limit" in error_message.lower():
-        telegram.send_error_message(chat_id, "Too many requests - try again later")
+        telegram.send_error_message(
+            chat_id,
+            "Too many requests - try again later",
+            reply_to_message_id=message_id,
+        )
     else:
         telegram.send_error_message(
-            chat_id, "Unable to reboot server - try again later"
+            chat_id,
+            "Unable to reboot server - try again later",
+            reply_to_message_id=message_id,
         )
 
 
-def process_command(telegram: TelegramClient, chat_id: int, text: str) -> None:
+def process_command(
+    telegram: TelegramClient, chat_id: int, text: str, message_id: Optional[int] = None
+) -> None:
     """Process a command from a Telegram message.
 
     Only whitelisted commands (/id, /help, /find, /reboot) are processed.
@@ -470,26 +529,26 @@ def process_command(telegram: TelegramClient, chat_id: int, text: str) -> None:
         telegram: TelegramClient instance.
         chat_id: Telegram chat ID.
         text: Message text containing the command.
+        message_id: Optional message ID to reply to.
     """
     parts = text.split(maxsplit=1)
     command = parts[0].lower()
 
     if command == "/id":
-        handle_id_command(telegram, chat_id)
+        handle_id_command(telegram, chat_id, message_id)
 
     elif command == "/help":
-        handle_help_command(telegram, chat_id)
+        handle_help_command(telegram, chat_id, message_id)
 
     elif command == "/find":
         server_arg = parts[1] if len(parts) > 1 else ""
-        handle_find_command(telegram, chat_id, server_arg)
+        handle_find_command(telegram, chat_id, server_arg, message_id)
 
     elif command == "/reboot":
         server_arg = parts[1] if len(parts) > 1 else ""
-        handle_reboot_command(telegram, chat_id, server_arg)
+        handle_reboot_command(telegram, chat_id, server_arg, message_id)
 
     else:
-        # Silently ignore all other commands (including /start)
         logger.info(f"Ignoring non-whitelisted command: {command}")
 
 
@@ -527,11 +586,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         chat_id = message_info["chat_id"]
         text = message_info["text"]
+        message_id = message_info["message_id"]
 
         logger.info(f"Processing message from chat_id: {chat_id}")
 
         if text.startswith("/"):
-            process_command(telegram, chat_id, text)
+            process_command(telegram, chat_id, text, message_id)
         else:
             logger.info("Non-command message - ignoring")
 

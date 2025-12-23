@@ -161,3 +161,37 @@ def test_get_servers_timeout(bitlaunch_client):
 
         with pytest.raises(ProviderError, match="timed out"):
             bitlaunch_client.get_servers()
+
+
+@responses.activate
+def test_list_servers_returns_normalized_format(
+    bitlaunch_client, sample_bitlaunch_servers
+):
+    """Test list_servers returns normalized server info."""
+    responses.add(
+        responses.GET,
+        "https://api.bitlaunch.io/v1/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    servers = bitlaunch_client.list_servers()
+    assert len(servers) == 2
+    # "ok" status is normalized to "running", ipv4 is mapped to ip
+    assert servers[0] == {"name": "test-server-1", "status": "running", "ip": "1.2.3.4"}
+    assert servers[1] == {"name": "test-server-2", "status": "running", "ip": "5.6.7.8"}
+
+
+@responses.activate
+def test_list_servers_handles_missing_ip(bitlaunch_client):
+    """Test list_servers handles servers without IP."""
+    responses.add(
+        responses.GET,
+        "https://api.bitlaunch.io/v1/servers",
+        json=[{"id": "srv-1", "name": "no-ip-server", "status": "stopped"}],
+        status=200,
+    )
+
+    servers = bitlaunch_client.list_servers()
+    assert len(servers) == 1
+    assert servers[0] == {"name": "no-ip-server", "status": "stopped", "ip": None}

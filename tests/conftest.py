@@ -136,19 +136,19 @@ def sample_api_gateway_event(sample_telegram_update):
 
 @pytest.fixture
 def sample_bitlaunch_servers():
-    """Sample BitLaunch servers response."""
+    """Sample BitLaunch servers response (matches real API field names)."""
     return [
         {
             "id": "server-123",
             "name": "test-server-1",
-            "status": "running",
-            "ip": "1.2.3.4",
+            "status": "ok",  # Real API uses "ok" not "running"
+            "ipv4": "1.2.3.4",  # Real API uses "ipv4" not "ip"
         },
         {
             "id": "server-456",
             "name": "test-server-2",
-            "status": "running",
-            "ip": "5.6.7.8",
+            "status": "ok",
+            "ipv4": "5.6.7.8",
         },
     ]
 

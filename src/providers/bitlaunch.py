@@ -109,6 +109,26 @@ class BitLaunchClient(ProviderClient):
         logger.warning(f"Server not found: {server_name}")
         return None
 
+    def list_servers(self) -> List[Dict]:
+        """List all servers with normalized info.
+
+        Returns:
+            list: List of server dicts with keys: name, status, ip.
+
+        Raises:
+            ProviderError: If the API request fails.
+        """
+        return [
+            {
+                "name": s.get("name", "unknown"),
+                "status": "running"
+                if s.get("status") == "ok"
+                else s.get("status", "unknown"),
+                "ip": s.get("ipv4"),
+            }
+            for s in self.get_servers()
+        ]
+
     def reboot_server(self, server_name: str) -> bool:
         """Reboot a server by name.
 

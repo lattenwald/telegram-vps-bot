@@ -198,6 +198,7 @@ def handle_help_command(
             "Available commands:\n"
             "/id - Get your chat ID\n"
             "/help - Show this help message\n"
+            "/list [provider] - List servers\n"
             "/find <server_name> - Find a server\n"
             "/reboot <server_name> - Reboot a server"
         )
@@ -480,6 +481,117 @@ def handle_reboot_command(
             _handle_reboot_error(telegram, chat_id, server_name, e, message_id)
 
 
+def handle_list_command(
+    telegram: TelegramClient,
+    chat_id: int,
+    provider_arg: str,
+    message_id: Optional[int] = None,
+) -> None:
+    """Handle /list command - list servers by provider.
+
+    Supports formats:
+    - /list - lists all servers grouped by provider
+    - /list <provider> - lists servers for specific provider
+
+    Args:
+        telegram: TelegramClient instance.
+        chat_id: Telegram chat ID.
+        provider_arg: Optional provider name to filter by.
+        message_id: Optional message ID to reply to.
+    """
+    admin = is_admin(chat_id)
+    provider_arg = provider_arg.strip().lower() if provider_arg else ""
+
+    if provider_arg:
+        if provider_arg not in PROVIDERS:
+            allowed = (
+                list(PROVIDERS.keys()) if admin else get_allowed_providers(chat_id)
+            )
+            msg = f"Unknown provider `{provider_arg}`"
+            if allowed:
+                msg += f". Available: {', '.join(allowed)}"
+            telegram.send_error_message(
+                chat_id, msg, parse_mode="Markdown", reply_to_message_id=message_id
+            )
+            return
+
+        if not is_authorized(chat_id, provider=provider_arg):
+            telegram.send_error_message(
+                chat_id,
+                f"Access denied for provider `{provider_arg}`",
+                parse_mode="Markdown",
+                reply_to_message_id=message_id,
+            )
+            return
+
+        providers_to_query = [provider_arg]
+    else:
+        if not is_authorized(chat_id):
+            telegram.send_error_message(
+                chat_id,
+                "Access denied. Use /id to get your chat ID and request authorization.",
+                reply_to_message_id=message_id,
+            )
+            return
+        providers_to_query = get_allowed_providers(chat_id)
+
+    results: list[str] = []
+    for prov_name in providers_to_query:
+        try:
+            provider = create_provider_client(prov_name)
+            servers = provider.list_servers()
+
+            # Filter by ACL for non-admins
+            if not admin:
+                servers = [
+                    s
+                    for s in servers
+                    if is_authorized(chat_id, provider=prov_name, server=s["name"])
+                ]
+
+            # Skip empty providers for non-admins
+            if not servers and not admin:
+                continue
+
+            count = len(servers)
+            server_word = "server" if count == 1 else "servers"
+            lines = [f"📋 {prov_name} ({count} {server_word}):"]
+
+            for s in servers:
+                name = escape_markdown(s["name"])
+                status = s.get("status", "unknown")
+                ip = s.get("ip")
+                if ip:
+                    lines.append(f"• *{name}* ({status}) - `{ip}`")
+                else:
+                    lines.append(f"• *{name}* ({status})")
+
+            results.append("\n".join(lines))
+
+        except ProviderError as e:
+            logger.error(f"Failed to list servers from {prov_name}: {e}")
+            results.append(f"⚠️ {prov_name}: Unable to fetch servers")
+
+    if not results:
+        telegram.send_message(
+            chat_id,
+            "No servers found",
+            reply_to_message_id=message_id,
+        )
+        return
+
+    response = "\n\n".join(results)
+    try:
+        telegram.send_message(
+            chat_id,
+            response,
+            parse_mode="Markdown",
+            reply_to_message_id=message_id,
+        )
+    except TelegramError as e:
+        logger.error(f"Failed to send server list: {e}")
+
+
 def _handle_reboot_error(
     telegram: TelegramClient,
     chat_id: int,
@@ -522,7 +634,7 @@ def process_command(
 ) -> None:
     """Process a command from a Telegram message.
 
-    Only whitelisted commands (/id, /help, /find, /reboot) are processed.
+    Only whitelisted commands (/id, /help, /list, /find, /reboot) are processed.
     All other commands are silently ignored.
 
     Args:
@@ -547,6 +659,10 @@ def process_command(
     elif command == "/reboot":
         server_arg = parts[1] if len(parts) > 1 else ""
         handle_reboot_command(telegram, chat_id, server_arg, message_id)
+
+    elif command == "/list":
+        provider_arg = parts[1] if len(parts) > 1 else ""
+        handle_list_command(telegram, chat_id, provider_arg, message_id)
 
     else:
         logger.info(f"Ignoring non-whitelisted command: {command}")

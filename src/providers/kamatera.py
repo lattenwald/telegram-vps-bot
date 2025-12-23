@@ -157,6 +157,39 @@ class KamateraClient(ProviderClient):
             logger.error(f"Kamatera API request failed: {e}")
             raise ProviderError("Network error - Kamatera API unavailable")
 
+    def list_servers(self) -> List[Dict]:
+        """List all servers with normalized info.
+
+        Note: Kamatera's /service/servers endpoint only returns basic info.
+        We fetch detailed info for each server to get IP addresses.
+
+        Returns:
+            list: List of server dicts with keys: name, status, ip.
+
+        Raises:
+            ProviderError: If the API request fails.
+        """
+        servers = self.get_servers()
+        result = []
+        for s in servers:
+            name = s.get("name", "unknown")
+            power = s.get("power", "unknown")
+            status = (
+                "running" if power == "on" else "stopped" if power == "off" else power
+            )
+            # Fetch detailed info to get IP (basic list doesn't include networks)
+            ip = None
+            server_info = self.find_server_by_name(name)
+            if server_info:
+                for network in server_info.get("networks", []):
+                    if network.get("network", "").startswith("wan-"):
+                        ips = network.get("ips", [])
+                        if ips:
+                            ip = ips[0]
+                            break
+            result.append({"name": name, "status": status, "ip": ip})
+        return result
+
     def reboot_server(self, server_name: str) -> bool:
         """Reboot a server by name.
 

@@ -1,7 +1,7 @@
 """Abstract base class for VPS provider clients."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import List, Optional
 
 
 class ProviderError(Exception):
@@ -51,5 +51,18 @@ class ProviderClient(ABC):
 
         Raises:
             ProviderError: If the server is not found or API request fails.
+        """
+        pass
+
+    @abstractmethod
+    def list_servers(self) -> List[dict]:
+        """List all servers with normalized info.
+
+        Returns:
+            list: List of server dicts with keys: name, status, ip.
+                  Example: {"name": "my-server", "status": "running", "ip": "1.2.3.4"}
+
+        Raises:
+            ProviderError: If the API request fails.
         """
         pass

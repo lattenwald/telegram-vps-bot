@@ -384,3 +384,96 @@ def test_client_headers(kamatera_client):
     assert headers["AuthSecret"] == "test-secret"
     assert headers["Content-Type"] == "application/json"
     assert headers["Accept"] == "application/json"
+
+
+@responses.activate
+def test_list_servers_returns_normalized_format(kamatera_client):
+    """Test list_servers returns normalized server info with status mapping."""
+    # Basic list endpoint (no networks)
+    responses.add(
+        responses.GET,
+        "https://cloudcli.cloudwm.com/service/servers",
+        json=[
+            {"id": "kam-1", "name": "server-on", "power": "on"},
+            {"id": "kam-2", "name": "server-off", "power": "off"},
+        ],
+        status=200,
+    )
+    # Detailed info endpoint returns networks
+    responses.add(
+        responses.POST,
+        "https://cloudcli.cloudwm.com/service/server/info",
+        json=[
+            {
+                "id": "kam-1",
+                "name": "server-on",
+                "networks": [{"network": "wan-eu", "ips": ["1.2.3.4"]}],
+            }
+        ],
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        "https://cloudcli.cloudwm.com/service/server/info",
+        json=[
+            {
+                "id": "kam-2",
+                "name": "server-off",
+                "networks": [{"network": "wan-us", "ips": ["5.6.7.8"]}],
+            }
+        ],
+        status=200,
+    )
+
+    servers = kamatera_client.list_servers()
+    assert len(servers) == 2
+    assert servers[0] == {"name": "server-on", "status": "running", "ip": "1.2.3.4"}
+    assert servers[1] == {"name": "server-off", "status": "stopped", "ip": "5.6.7.8"}
+
+
+@responses.activate
+def test_list_servers_handles_missing_networks(kamatera_client):
+    """Test list_servers handles servers without networks in detailed info."""
+    responses.add(
+        responses.GET,
+        "https://cloudcli.cloudwm.com/service/servers",
+        json=[{"id": "kam-1", "name": "no-ip-server", "power": "on"}],
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        "https://cloudcli.cloudwm.com/service/server/info",
+        json=[{"id": "kam-1", "name": "no-ip-server"}],
+        status=200,
+    )
+
+    servers = kamatera_client.list_servers()
+    assert len(servers) == 1
+    assert servers[0] == {"name": "no-ip-server", "status": "running", "ip": None}
+
+
+@responses.activate
+def test_list_servers_handles_private_network_only(kamatera_client):
+    """Test list_servers handles servers with only private network (no wan-)."""
+    responses.add(
+        responses.GET,
+        "https://cloudcli.cloudwm.com/service/servers",
+        json=[{"id": "kam-1", "name": "private-only", "power": "on"}],
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        "https://cloudcli.cloudwm.com/service/server/info",
+        json=[
+            {
+                "id": "kam-1",
+                "name": "private-only",
+                "networks": [{"network": "lan-internal", "ips": ["10.0.0.5"]}],
+            }
+        ],
+        status=200,
+    )
+
+    servers = kamatera_client.list_servers()
+    assert len(servers) == 1
+    assert servers[0] == {"name": "private-only", "status": "running", "ip": None}

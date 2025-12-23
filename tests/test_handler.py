@@ -665,3 +665,483 @@ def test_lambda_handler_find_unknown_provider(
     assert len(responses.calls) == 1  # Only Telegram error message
     request_body = json.loads(responses.calls[0].request.body)
     assert "unknown provider" in request_body["text"].lower()
+
+
+# Tests for /list command
+
+
+@responses.activate
+def test_lambda_handler_list_command_admin_all_providers(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /list command with admin - shows all providers grouped."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    # Admin chat ID from ACL config
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list"
+    update["message"]["chat"]["id"] = 123456789  # Admin
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # Mock BitLaunch API
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    # Mock Kamatera API - list endpoint returns basic info only
+    responses.add(
+        responses.GET,
+        "https://cloudcli.cloudwm.com/service/servers",
+        json=[{"id": "kam-1", "name": "kam-server", "power": "on"}],
+        status=200,
+    )
+    # Mock Kamatera API - info endpoint returns networks with IP
+    responses.add(
+        responses.POST,
+        "https://cloudcli.cloudwm.com/service/server/info",
+        json=[
+            {
+                "id": "kam-1",
+                "name": "kam-server",
+                "networks": [{"network": "wan-eu", "ips": ["9.10.11.12"]}],
+            }
+        ],
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Admin sees all providers with actual server data
+    request_body = json.loads(responses.calls[-1].request.body)
+    assert "bitlaunch" in request_body["text"].lower()
+    assert "kamatera" in request_body["text"].lower()
+    assert "test-server-1" in request_body["text"]
+    assert "`1.2.3.4`" in request_body["text"]
+    assert "kam-server" in request_body["text"]
+    assert "`9.10.11.12`" in request_body["text"]
+
+
+@responses.activate
+def test_lambda_handler_list_command_specific_provider(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /list command with specific provider."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list bitlaunch"
+    update["message"]["chat"]["id"] = 123456789  # Admin
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # Mock BitLaunch API only
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Only BitLaunch should be queried
+    assert len(responses.calls) == 2  # BitLaunch + Telegram
+    request_body = json.loads(responses.calls[-1].request.body)
+    assert "bitlaunch" in request_body["text"].lower()
+    assert "kamatera" not in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_list_command_unauthorized(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+):
+    """Test /list command with unauthorized user."""
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["chat"]["id"] = 999999999  # Unauthorized
+    update["message"]["text"] = "/list"
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "Access denied" in request_body["text"]
+
+
+@responses.activate
+def test_lambda_handler_list_command_unknown_provider(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+):
+    """Test /list command with unknown provider."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list unknown"
+    update["message"]["chat"]["id"] = 123456789  # Admin
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "unknown provider" in request_body["text"].lower()
+    assert "bitlaunch" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_list_command_user_sees_only_allowed(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /list command - user sees only allowed providers."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    # User 987654321 only has bitlaunch access
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list"
+    update["message"]["chat"]["id"] = 987654321
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # Mock BitLaunch API only (user doesn't have kamatera access)
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    # Only BitLaunch should be in response
+    request_body = json.loads(responses.calls[-1].request.body)
+    assert "bitlaunch" in request_body["text"].lower()
+    # Kamatera should not appear
+    assert "kamatera" not in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_list_command_user_denied_provider(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+):
+    """Test /list command - user denied access to specific provider."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    # User 987654321 only has bitlaunch access, trying to list kamatera
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list kamatera"
+    update["message"]["chat"]["id"] = 987654321
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "access denied" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_list_command_provider_error(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    sample_bitlaunch_servers,
+):
+    """Test /list command - partial results when one provider fails."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list"
+    update["message"]["chat"]["id"] = 123456789  # Admin
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # BitLaunch succeeds
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=sample_bitlaunch_servers,
+        status=200,
+    )
+
+    # Kamatera fails
+    responses.add(
+        responses.GET,
+        "https://cloudcli.cloudwm.com/service/servers",
+        json={"error": "Server error"},
+        status=500,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[-1].request.body)
+    # Should show BitLaunch results
+    assert "bitlaunch" in request_body["text"].lower()
+    assert "test-server-1" in request_body["text"]
+    # Should show Kamatera error
+    assert "kamatera" in request_body["text"].lower()
+    assert "unable to fetch" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_list_command_empty_results(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+):
+    """Test /list command - no servers found."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    # User 987654321 only has bitlaunch access
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list"
+    update["message"]["chat"]["id"] = 987654321
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # BitLaunch returns empty list
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=[],
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[-1].request.body)
+    assert "no servers found" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_list_command_admin_empty_provider(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+):
+    """Test /list command - admin sees empty provider message."""
+    import importlib
+
+    import auth
+    import config
+    import handler as handler_module
+
+    importlib.reload(config)
+    importlib.reload(auth)
+    importlib.reload(handler_module)
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/list bitlaunch"
+    update["message"]["chat"]["id"] = 123456789  # Admin
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    # Mock Telegram send_message
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    # BitLaunch returns empty list
+    responses.add(
+        responses.GET,
+        "https://app.bitlaunch.io/api/servers",
+        json=[],
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[-1].request.body)
+    # Admin should see "0 servers" message
+    assert "bitlaunch" in request_body["text"].lower()
+    assert "0 server" in request_body["text"].lower()
+
+
+@responses.activate
+def test_lambda_handler_help_command_shows_list(
+    sample_api_gateway_event,
+    lambda_context,
+    mock_env_vars,
+    mock_ssm,
+    authorized_chat_id,
+):
+    """Test /help command shows /list for authorized users."""
+    from handler import lambda_handler
+
+    update = json.loads(sample_api_gateway_event["body"])
+    update["message"]["text"] = "/help"
+    update["message"]["chat"]["id"] = authorized_chat_id
+    sample_api_gateway_event["body"] = json.dumps(update)
+
+    responses.add(
+        responses.POST,
+        "https://api.telegram.org/bottest-telegram-token-123/sendMessage",
+        json={"ok": True, "result": {"message_id": 1}},
+        status=200,
+    )
+
+    response = lambda_handler(sample_api_gateway_event, lambda_context)
+
+    assert response["statusCode"] == 200
+    request_body = json.loads(responses.calls[0].request.body)
+    assert "/list" in request_body["text"]

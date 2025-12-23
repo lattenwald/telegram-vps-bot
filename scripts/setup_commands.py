@@ -3,7 +3,7 @@
 
 This script registers bot commands with Telegram, setting different command sets for:
 - Default scope (all users): /id, /help
-- Authorized users (admins and users from ACL): /id, /help, /find, /reboot
+- Authorized users (admins and users from ACL): /id, /help, /list, /find, /reboot
 
 Usage:
     python scripts/setup_commands.py
@@ -36,6 +36,7 @@ DEFAULT_COMMANDS = [
 AUTHORIZED_COMMANDS = [
     {"command": "id", "description": "Get your Telegram chat ID"},
     {"command": "help", "description": "Show available commands"},
+    {"command": "list", "description": "List servers by provider"},
     {"command": "find", "description": "Find a server by name"},
     {"command": "reboot", "description": "Reboot a server"},
 ]

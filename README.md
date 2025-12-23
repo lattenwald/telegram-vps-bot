@@ -1,10 +1,11 @@
 # Telegram VPS Management Bot
 
-A serverless Telegram bot deployed on AWS Lambda that enables authorized users to manage VPS instances through the BitLaunch.io API via simple chat commands.
+A serverless Telegram bot deployed on AWS Lambda that enables authorized users to manage VPS instances across multiple providers (BitLaunch, Kamatera) via simple chat commands.
 
 ## Features
 
-- **Secure Authorization**: Chat ID-based access control
+- **Multi-Provider Support**: Manage VPS across BitLaunch and Kamatera
+- **ACL-Based Authorization**: Fine-grained access control per provider/server
 - **Simple Commands**: Manage VPS through Telegram chat
 - **Serverless**: Zero-cost deployment using AWS Free Tier
 - **Infrastructure as Code**: Reproducible Terraform configuration
@@ -15,19 +16,22 @@ A serverless Telegram bot deployed on AWS Lambda that enables authorized users t
 |---------|-------------|---------------|---------|
 | `/id` | Get your Telegram chat ID | Not required | `/id` |
 | `/help` | Show available commands | Not required | `/help` |
+| `/list [provider]` | List servers (all or by provider) | Required | `/list` or `/list kamatera` |
+| `/find <server_name>` | Find a server by name | Required | `/find web-1` |
 | `/reboot <server_name>` | Reboot a VPS server | Required | `/reboot web-1` |
 
 **Note:** The `/help` command shows different commands based on authorization:
 - **Unauthorized users** see: `/id`, `/help`
-- **Authorized users** see: `/id`, `/help`, `/reboot`
+- **Authorized users** see: `/id`, `/help`, `/list`, `/find`, `/reboot`
 
 All other commands (including `/start`) are silently ignored.
 
 ## Architecture
 
 ```
-Telegram API → API Gateway → Lambda Function → BitLaunch API
-                                ↓
+                                          ┌→ BitLaunch API
+Telegram API → API Gateway → Lambda ──────┤
+                                ↓         └→ Kamatera API
                           SSM Parameter Store
                           CloudWatch Logs
 ```
@@ -37,7 +41,7 @@ Telegram API → API Gateway → Lambda Function → BitLaunch API
 - AWS account with CLI configured
 - Terraform >= 1.0
 - Python 3.13
-- BitLaunch.io account with API key
+- VPS provider account(s): BitLaunch and/or Kamatera
 - Telegram bot token from [@BotFather](https://t.me/BotFather)
 
 ## Quick Start
@@ -71,17 +75,25 @@ uv pip install -r requirements-dev.txt  # For development/testing
 
 ### 3. Configure AWS Secrets
 
-Store your Telegram bot token and BitLaunch API key in AWS SSM Parameter Store:
+Store your Telegram bot token and provider credentials in AWS SSM Parameter Store:
 
 ```bash
+# Telegram bot token
 aws ssm put-parameter \
   --name /telegram-vps-bot/telegram-token \
   --value "YOUR_TELEGRAM_BOT_TOKEN" \
   --type SecureString
 
+# BitLaunch credentials (if using)
 aws ssm put-parameter \
-  --name /telegram-vps-bot/bitlaunch-api-key \
-  --value "YOUR_BITLAUNCH_API_KEY" \
+  --name /telegram-vps-bot/credentials/bitlaunch \
+  --value '{"api_key": "YOUR_BITLAUNCH_API_KEY"}' \
+  --type SecureString
+
+# Kamatera credentials (if using)
+aws ssm put-parameter \
+  --name /telegram-vps-bot/credentials/kamatera \
+  --value '{"client_id": "YOUR_CLIENT_ID", "secret": "YOUR_SECRET"}' \
   --type SecureString
 ```
 
